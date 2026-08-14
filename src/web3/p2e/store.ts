@@ -69,7 +69,8 @@ function newWeek(weekId: string): WeekState {
 function rollWeek(db: P2EDatabase, now = new Date()): WeekState {
   const id = weekIdFromDate(now);
   if (db.week && db.week.weekId !== id && !db.week.settled) {
-    const prize = (BigInt(db.week.poolWei || "0") * BigInt(TREASURY_BPS)) / 10000n;
+    const prize =
+      (BigInt(db.week.poolWei || "0") * BigInt(TREASURY_BPS)) / BigInt(10000);
     db.week.payouts = settlePayouts(db.week);
     db.week.treasuryAccruedWei = prize.toString();
     db.week.settled = true;

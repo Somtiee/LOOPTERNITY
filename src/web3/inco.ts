@@ -25,9 +25,22 @@ const incoGetFeeAbi = [
   },
 ] as const;
 
-export type IncoLightningClient = Awaited<
-  ReturnType<typeof Lightning.baseMainnet>
->;
+/**
+ * Structural client type — do not use `ReturnType<typeof Lightning.baseMainnet>`.
+ * `@inco/lightning-js` pins viem 2.39; the app uses a newer viem, and those
+ * `Client` types are not assignable to each other.
+ */
+export type IncoLightningClient = {
+  executorAddress: Address;
+  encrypt: (
+    value: bigint | boolean,
+    options: {
+      accountAddress: Address;
+      dappAddress: Address;
+      handleType: (typeof handleTypes)[keyof typeof handleTypes];
+    },
+  ) => Promise<string>;
+};
 
 let lightningPromise: Promise<IncoLightningClient> | null = null;
 
@@ -39,10 +52,11 @@ let lightningPromise: Promise<IncoLightningClient> | null = null;
 export function getIncoLightning(): Promise<IncoLightningClient> {
   if (!lightningPromise) {
     const opts = { hostChainRpcUrls: baseRpcUrls };
-    lightningPromise =
+    lightningPromise = (
       CHAIN_MODE === "sepolia"
         ? Lightning.baseSepoliaTestnet(opts)
-        : Lightning.baseMainnet(opts);
+        : Lightning.baseMainnet(opts)
+    ) as Promise<IncoLightningClient>;
   }
   return lightningPromise;
 }

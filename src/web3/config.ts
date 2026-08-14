@@ -1,4 +1,5 @@
 import { getDefaultConfig } from "@rainbow-me/rainbowkit";
+import type { Transport } from "viem";
 import { injected } from "wagmi/connectors";
 import { createConfig, fallback, http } from "wagmi";
 import { base, baseSepolia } from "wagmi/chains";
@@ -76,11 +77,15 @@ export const baseRpcUrls = [
   ...BASE_RPC_FALLBACKS.filter((url) => url !== baseRpcUrl),
 ];
 
-const transports = {
-  [BASE_CHAIN.id]: fallback(
-    baseRpcUrls.map((url) => http(url, { retryCount: 2, timeout: 20_000 })),
-  ),
-} as const;
+const chainTransport = fallback(
+  baseRpcUrls.map((url) => http(url, { retryCount: 2, timeout: 20_000 })),
+);
+
+/** Both Base ids so `createConfig` accepts `BASE_CHAIN` (`8453 | 84532`). */
+const transports: Record<typeof base.id | typeof baseSepolia.id, Transport> = {
+  [base.id]: chainTransport,
+  [baseSepolia.id]: chainTransport,
+};
 
 /**
  * RainbowKit `getDefaultConfig` needs a Reown/WalletConnect Cloud project id

@@ -35,9 +35,7 @@ export function ConnectWalletButton({
           openConnectModal,
           mounted,
         }) => {
-          const connected = Boolean(mounted && account && chain);
-
-          if (!connected) {
+          if (!mounted || !account || !chain) {
             return (
               <button
                 type="button"
