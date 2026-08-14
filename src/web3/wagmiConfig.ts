@@ -1,6 +1,14 @@
 "use client";
 
-import { getDefaultConfig } from "@rainbow-me/rainbowkit";
+import { connectorsForWallets } from "@rainbow-me/rainbowkit";
+import {
+  coinbaseWallet,
+  injectedWallet,
+  metaMaskWallet,
+  rabbyWallet,
+  rainbowWallet,
+  walletConnectWallet,
+} from "@rainbow-me/rainbowkit/wallets";
 import { cookieStorage, createConfig, createStorage } from "wagmi";
 import { injected } from "wagmi/connectors";
 import {
@@ -15,29 +23,41 @@ const wagmiStorage = createStorage({
   key: "loopternity.wagmi",
 });
 
-/**
- * RainbowKit `getDefaultConfig` is client-only (Next.js 16). Do not import
- * this module from a Server Component / `layout.tsx`.
- */
-export const wagmiConfig = walletConnectProjectId
-  ? getDefaultConfig({
-      appName: APP_NAME,
-      appDescription: "Vertical endless survival on Base.",
-      projectId: walletConnectProjectId,
-      chains: [BASE_CHAIN],
-      ssr: true,
-      storage: wagmiStorage,
-      transports,
-    })
-  : createConfig({
-      chains: [BASE_CHAIN],
-      connectors: [
-        injected({
-          shimDisconnect: false,
-        }),
+const reconnectInjected = injected({
+  shimDisconnect: false,
+});
+
+const rainbowConnectors = walletConnectProjectId
+  ? connectorsForWallets(
+      [
+        {
+          groupName: "Installed",
+          wallets: [
+            injectedWallet,
+            rabbyWallet,
+            metaMaskWallet,
+            rainbowWallet,
+            coinbaseWallet,
+            walletConnectWallet,
+          ],
+        },
       ],
-      storage: wagmiStorage,
-      transports,
-      ssr: true,
-      multiInjectedProviderDiscovery: true,
-    });
+      {
+        appName: APP_NAME,
+        projectId: walletConnectProjectId,
+      },
+    )
+  : [];
+
+/**
+ * Injected connector uses `shimDisconnect: false` so Rabby/MetaMask stay
+ * connected after refresh. Do not import this module from a Server Component.
+ */
+export const wagmiConfig = createConfig({
+  chains: [BASE_CHAIN],
+  connectors: [reconnectInjected, ...rainbowConnectors],
+  storage: wagmiStorage,
+  transports,
+  ssr: true,
+  multiInjectedProviderDiscovery: true,
+});

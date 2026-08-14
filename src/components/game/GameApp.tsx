@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useAccount } from "wagmi";
 import {
   DEFAULT_DIFFICULTY,
   DEFAULT_THEME,
@@ -20,7 +19,8 @@ import type {
   HudSnapshot,
   ThemeId,
 } from "@/game/types";
-import { BASE_CHAIN, vaultIsDeployed } from "@/web3/config";
+import { vaultIsDeployed } from "@/web3/config";
+import { useWalletSession } from "@/web3/hooks/useWalletSession";
 import { P2EEntryConfirm } from "@/components/web3/P2EEntryConfirm";
 import { useOnchainWeekTheme } from "@/web3/hooks/useOnchainWeekTheme";
 import { usePlayerRegistry } from "@/web3/hooks/usePlayerRegistry";
@@ -60,7 +60,7 @@ const INITIAL_HUD: HudSnapshot = {
 };
 
 export default function GameApp() {
-  const { address, isConnected, chainId } = useAccount();
+  const { address, onBase, restoring } = useWalletSession();
   const { refresh } = usePlayerRegistry();
   const p2eWorld = useOnchainWeekTheme();
   const coarsePointer = useCoarsePointer();
@@ -148,17 +148,15 @@ export default function GameApp() {
     setScreen("playing");
   }, [mode, p2eWorld.themeId, themeId]);
 
-  const onBase = isConnected && chainId === BASE_CHAIN.id;
-
   const startRun = useCallback(() => {
-    if (!onBase) return;
+    if (restoring || !onBase) return;
     if (mode === "p2e") {
       if (!p2eWorld.playable) return;
       setEntryOpen(true);
       return;
     }
     launchRun();
-  }, [launchRun, mode, onBase, p2eWorld.playable]);
+  }, [launchRun, mode, onBase, p2eWorld.playable, restoring]);
 
   const restart = useCallback(() => {
     audio.sfx("click");
@@ -199,7 +197,7 @@ export default function GameApp() {
     }
     recordedRef.current = true;
     if (mode === "normal") {
-      if (isConnected && address) {
+      if (address) {
         const result = recordNormalBest(
           address,
           runDifficultyId,
@@ -219,7 +217,7 @@ export default function GameApp() {
     setNewBest(false);
     setPreviousBest(0);
 
-    if (!vaultIsDeployed && isConnected && address) {
+    if (!vaultIsDeployed && address) {
       const perfect = computePerfectRun({
         survivalSeconds: hud.timeSurvived,
         nearMisses: hud.nearMisses,
@@ -239,7 +237,6 @@ export default function GameApp() {
     hud.nearMisses,
     hud.phase,
     hud.timeSurvived,
-    isConnected,
     mode,
     refresh,
     runDifficultyId,
@@ -248,13 +245,13 @@ export default function GameApp() {
   ]);
 
   useEffect(() => {
-    if (onBase) return;
+    if (onBase || restoring) return;
     setEntryOpen(false);
     if (screen === "playing") {
       setPaused(false);
       setScreen("menu");
     }
-  }, [onBase, screen]);
+  }, [onBase, restoring, screen]);
 
   useEffect(() => {
     if (screen !== "playing") return;

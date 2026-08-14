@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useConnectModal } from "@rainbow-me/rainbowkit";
-import { useAccount, useSwitchChain } from "wagmi";
+import { useEffect, useRef, useState } from "react";
+import { useChainModal, useConnectModal } from "@rainbow-me/rainbowkit";
+import { useSwitchChain } from "wagmi";
 import { DIFFICULTIES, THEME_META } from "@/game/constants";
 import { listThemes, getTheme } from "@/game/themes";
 import { audio } from "@/game/audio/AudioManager";
@@ -10,6 +10,7 @@ import type { CharacterId, DifficultyId, GameMode, ThemeId } from "@/game/types"
 import { ConnectWalletButton } from "@/components/web3/ConnectWalletButton";
 import { PlayerHub } from "@/components/web3/PlayerHub";
 import { useOnchainWeekTheme } from "@/web3/hooks/useOnchainWeekTheme";
+import { useWalletSession } from "@/web3/hooks/useWalletSession";
 import {
   BASE_CHAIN,
   CHAIN_SWITCH_LABEL,
@@ -46,18 +47,56 @@ export function StartMenu({
   onCharacterChange,
   onStart,
 }: StartMenuProps) {
-  const { isConnected, chainId } = useAccount();
+  const { hasWallet, onBase, restoring } = useWalletSession();
   const { openConnectModal } = useConnectModal();
+  const { openChainModal } = useChainModal();
   const { switchChainAsync } = useSwitchChain();
   const p2eWorld = useOnchainWeekTheme();
   const [hubOpen, setHubOpen] = useState(false);
+  const pendingStart = useRef(false);
   const themes = listThemes();
   const menuThemeId = mode === "p2e" ? p2eWorld.themeId : themeId;
   const accent = menuThemeId
     ? getTheme(menuThemeId).accent
     : P2E_PENDING_ACCENT;
-  const onBase = isConnected && chainId === BASE_CHAIN.id;
   const canStart = onBase && (mode !== "p2e" || p2eWorld.playable);
+
+  const tryStart = () => {
+    if (restoring) {
+      pendingStart.current = true;
+      return;
+    }
+    if (!hasWallet) {
+      pendingStart.current = false;
+      openConnectModal?.();
+      return;
+    }
+    if (!onBase) {
+      pendingStart.current = false;
+      void switchChainAsync({ chainId: BASE_CHAIN.id }).catch(() => {
+        openChainModal?.();
+      });
+      return;
+    }
+    if (mode === "p2e" && p2eWorld.status === "error") {
+      pendingStart.current = false;
+      p2eWorld.refetch();
+      return;
+    }
+    if (!canStart) {
+      pendingStart.current = false;
+      return;
+    }
+    pendingStart.current = false;
+    audio.sfx("start");
+    onStart();
+  };
+
+  useEffect(() => {
+    if (!pendingStart.current || restoring) return;
+    tryStart();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run when session finishes restoring
+  }, [restoring, hasWallet, onBase]);
 
   const click = (fn: () => void, sting?: "click" | "enemy") => {
     void audio.unlock();
@@ -304,26 +343,8 @@ export function StartMenu({
             type="button"
             onClick={() => {
               void audio.unlock();
-              if (!isConnected) {
-                audio.sfx("click");
-                openConnectModal?.();
-                return;
-              }
-              if (!onBase) {
-                audio.sfx("click");
-                void switchChainAsync({ chainId: BASE_CHAIN.id }).catch(
-                  () => openConnectModal?.(),
-                );
-                return;
-              }
-              if (mode === "p2e" && p2eWorld.status === "error") {
-                audio.sfx("click");
-                p2eWorld.refetch();
-                return;
-              }
-              if (!canStart) return;
-              audio.sfx("start");
-              onStart();
+              audio.sfx("click");
+              tryStart();
             }}
             className={`relative min-h-12 w-full overflow-hidden rounded-2xl px-6 py-3.5 font-[family-name:var(--font-display)] text-sm tracking-[0.28em] text-[#0a0608] transition sm:text-base ${
               canStart ? "start-pulse hover:brightness-110 active:scale-[0.99]" : "hover:brightness-110 active:scale-[0.99]"
@@ -333,9 +354,11 @@ export function StartMenu({
               boxShadow: `0 0 40px ${accent}55`,
             }}
           >
-            {!isConnected
+            {!hasWallet && !restoring
               ? "START RUN"
-              : !onBase
+              : restoring
+                ? "…"
+                : !onBase
                 ? `SWITCH TO ${CHAIN_SWITCH_LABEL}`
                 : mode === "p2e" && p2eWorld.status === "loading"
                   ? "LOADING…"
@@ -347,7 +370,7 @@ export function StartMenu({
                         ? `ENTER · $${P2E_ENTRY_FEE_USD.toFixed(2)}`
                         : "START RUN"}
           </button>
-          {!isConnected || onBase ? null : (
+          {!hasWallet || onBase || restoring ? null : (
             <p className="text-center text-[11px] text-white/40">
               {WRONG_NETWORK_HINT}
             </p>
