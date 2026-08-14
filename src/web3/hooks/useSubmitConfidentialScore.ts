@@ -15,8 +15,8 @@ import {
   CHAIN_LABEL,
   LOOPTERNITY_CONTRACT_ADDRESS,
   vaultIsDeployed,
-  wagmiConfig,
 } from "@/web3/config";
+import { wagmiConfig } from "@/web3/wagmiConfig";
 import { chainSwitchHint, walletTxError } from "@/web3/walletErrors";
 import {
   encryptRunScore,

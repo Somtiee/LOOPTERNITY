@@ -2,15 +2,11 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { WagmiProvider, type State } from "wagmi";
+import { WagmiProvider } from "wagmi";
 import { RainbowKitProvider, darkTheme } from "@rainbow-me/rainbowkit";
 import "@rainbow-me/rainbowkit/styles.css";
-import {
-  APP_NAME,
-  BASE_CHAIN,
-  wagmiConfig,
-  walletConnectProjectId,
-} from "./config";
+import { APP_NAME, BASE_CHAIN, walletConnectProjectId } from "./config";
+import { wagmiConfig } from "./wagmiConfig";
 
 const loopternityTheme = darkTheme({
   accentColor: "#ff6a2a",
@@ -20,13 +16,7 @@ const loopternityTheme = darkTheme({
   overlayBlur: "small",
 });
 
-export function Web3Providers({
-  children,
-  initialState,
-}: {
-  children: ReactNode;
-  initialState?: State;
-}) {
+export function Web3Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -48,11 +38,7 @@ export function Web3Providers({
   }, []);
 
   return (
-    <WagmiProvider
-      config={wagmiConfig}
-      initialState={initialState}
-      reconnectOnMount
-    >
+    <WagmiProvider config={wagmiConfig} reconnectOnMount>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider
           theme={loopternityTheme}

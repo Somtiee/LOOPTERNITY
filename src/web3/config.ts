@@ -1,7 +1,5 @@
-import { getDefaultConfig } from "@rainbow-me/rainbowkit";
 import type { Transport } from "viem";
-import { cookieStorage, createConfig, createStorage, fallback, http } from "wagmi";
-import { injected } from "wagmi/connectors";
+import { fallback, http } from "wagmi";
 import { base, baseSepolia } from "wagmi/chains";
 
 /**
@@ -82,40 +80,7 @@ const chainTransport = fallback(
 );
 
 /** Both Base ids so `createConfig` accepts `BASE_CHAIN` (`8453 | 84532`). */
-const transports: Record<typeof base.id | typeof baseSepolia.id, Transport> = {
+export const transports: Record<typeof base.id | typeof baseSepolia.id, Transport> = {
   [base.id]: chainTransport,
   [baseSepolia.id]: chainTransport,
 };
-
-const wagmiStorage = createStorage({
-  storage: cookieStorage,
-  key: "loopternity.wagmi",
-});
-
-/**
- * RainbowKit `getDefaultConfig` needs a Reown/WalletConnect Cloud project id
- * (free: https://cloud.reown.com). Without one, browser wallets still work via
- * injected MetaMask / Rabby / Coinbase. Do not use a fake id — it hangs connect.
- */
-export const wagmiConfig = walletConnectProjectId
-  ? getDefaultConfig({
-      appName: APP_NAME,
-      appDescription: "Vertical endless survival on Base.",
-      projectId: walletConnectProjectId,
-      chains: [BASE_CHAIN],
-      ssr: true,
-      storage: wagmiStorage,
-      transports,
-    })
-  : createConfig({
-      chains: [BASE_CHAIN],
-      connectors: [
-        injected({
-          shimDisconnect: false,
-        }),
-      ],
-      storage: wagmiStorage,
-      transports,
-      ssr: true,
-      multiInjectedProviderDiscovery: true,
-    });

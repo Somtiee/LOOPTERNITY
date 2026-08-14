@@ -8,9 +8,9 @@ import {
   CHAIN_MODE,
   LOOPTERNITY_CONTRACT_ADDRESS,
   vaultIsDeployed,
-  wagmiConfig,
   ZERO_ADDRESS,
 } from "./config";
+import { wagmiConfig } from "./wagmiConfig";
 
 /** Two `newEuint256` inputs in `submitConfidentialScore` — each costs `inco.getFee()`. */
 export const INCO_SCORE_INPUTS = 2;

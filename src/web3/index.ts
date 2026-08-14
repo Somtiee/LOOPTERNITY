@@ -11,9 +11,9 @@ export {
   vaultIsDeployed,
   VAULT_DEPLOY_BLOCK,
   baseRpcUrl,
-  wagmiConfig,
   walletConnectProjectId,
 } from "./config";
+export { wagmiConfig } from "./wagmiConfig";
 export type { LoopternityChainMode } from "./config";
 export {
   encryptBool,
