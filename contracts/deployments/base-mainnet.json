@@ -1,0 +1,24 @@
+{
+  "network": "base",
+  "chainId": 8453,
+  "contract": "LoopternityVault",
+  "address": "0x66b549F570Fa63e3109B85FD15678c175F1a02c9",
+  "deployer": "0xEacA26c65bd43803CB07319D5055bB7CF8DEC00c",
+  "treasury": "0xEacA26c65bd43803CB07319D5055bB7CF8DEC00c",
+  "keeper": "0xEacA26c65bd43803CB07319D5055bB7CF8DEC00c",
+  "treasuryNote": "Interim: deployer EOA. Prompt E checklist wanted a production multisig — call setTreasury when one exists.",
+  "entryFeeWei": "26701128923731",
+  "entryFeeNote": "~$0.05 at deploy (ETH ~$1872.58). No USD in Solidity.",
+  "deployTx": "0xb5abab1ec156eaae745ec3fd61f966de1d755e9e7f20c16df496dcd43f5534a8",
+  "deployBlock": 49966576,
+  "explorers": {
+    "basescan": "https://basescan.org/address/0x66b549F570Fa63e3109B85FD15678c175F1a02c9",
+    "blockscout": "https://base.blockscout.com/address/0x66b549F570Fa63e3109B85FD15678c175F1a02c9"
+  },
+  "verification": {
+    "sourcify": "exact_match",
+    "blockscout": "429_rate_limited",
+    "basescan": "skipped_no_api_key"
+  },
+  "note": "Same CREATE address as Sepolia because deployer nonce 0 on both chains. Different chain state and entryFeeWei. Production is 8453."
+}

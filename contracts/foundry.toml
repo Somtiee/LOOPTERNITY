@@ -1,0 +1,48 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+test = "test"
+script = "script"
+solc = "0.8.29"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 200
+ffi = false
+fs_permissions = [{ access = "read", path = "./" }]
+remappings = [
+  "@inco/lightning/=lib/inco-lightning-shim/",
+  "forge-std/=lib/forge-std/src/",
+]
+
+# Production / Sepolia / mainnet compile against official @inco/lightning 1.0.2
+# (same CREATE2 executor on Base and Base Sepolia). Do not use the test shim.
+[profile.deploy]
+src = "src"
+out = "out"
+libs = ["lib", "vendor"]
+test = "test"
+script = "script"
+solc = "0.8.29"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 200
+ffi = false
+fs_permissions = [{ access = "read", path = "./" }]
+skip = ["*/test/*", "*.t.sol"]
+remappings = [
+  "@inco/=vendor/@inco/",
+  "@openzeppelin/=vendor/@openzeppelin/",
+  "forge-std/=lib/forge-std/src/",
+]
+
+[lint]
+lint_on_build = false
+
+[rpc_endpoints]
+base_sepolia = "${BASE_SEPOLIA_RPC_URL}"
+base = "${BASE_MAINNET_RPC_URL}"
+
+[etherscan]
+base_sepolia = { key = "${BASESCAN_API_KEY}", chain = 84532 }
+base = { key = "${BASESCAN_API_KEY}", chain = 8453 }

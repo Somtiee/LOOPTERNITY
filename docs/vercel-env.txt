@@ -1,0 +1,19 @@
+# Vercel (production app)
+# Copy these into the Vercel project (Production + Preview). Never add PRIVATE_KEY.
+
+NEXT_PUBLIC_CHAIN=mainnet
+NEXT_PUBLIC_BASE_RPC_URL=https://mainnet.base.org
+NEXT_PUBLIC_LOOPTERNITY_CONTRACT_ADDRESS=0x66b549F570Fa63e3109B85FD15678c175F1a02c9
+NEXT_PUBLIC_VAULT_DEPLOY_BLOCK=49966576
+NEXT_PUBLIC_P2E_ENTRY_FEE_USD=0.05
+NEXT_PUBLIC_P2E_TREASURY_ADDRESS=0xEacA26c65bd43803CB07319D5055bB7CF8DEC00c
+NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=
+
+# Paste your Reown project id into NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID (same as local .env.local).
+# Leave empty for injected wallets only.
+
+# GitHub Actions keeper (Sunday 00:05 UTC)
+# Repo → Settings → Secrets and variables → Actions:
+#   KEEPER_PRIVATE_KEY = contracts/.env PRIVATE_KEY (owner/keeper). Never commit it.
+#   BASE_MAINNET_RPC_URL = optional dedicated Base RPC (else public mainnet.base.org)
+# Workflow: .github/workflows/weekly-p2e.yml

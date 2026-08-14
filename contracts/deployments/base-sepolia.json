@@ -1,0 +1,21 @@
+{
+  "network": "base-sepolia",
+  "chainId": 84532,
+  "contract": "LoopternityVault",
+  "address": "0x66b549F570Fa63e3109B85FD15678c175F1a02c9",
+  "deployer": "0xEacA26c65bd43803CB07319D5055bB7CF8DEC00c",
+  "treasury": "0xEacA26c65bd43803CB07319D5055bB7CF8DEC00c",
+  "keeper": "0xEacA26c65bd43803CB07319D5055bB7CF8DEC00c",
+  "entryFeeWei": "20000000000000",
+  "deployTx": "0x92cb931d5c5b9c8510eb5c9bac0e75f0fe85ecd08c0598b65cddf267abb70ea2",
+  "explorers": {
+    "basescan": "https://sepolia.basescan.org/address/0x66b549F570Fa63e3109B85FD15678c175F1a02c9",
+    "blockscout": "https://base-sepolia.blockscout.com/address/0x66b549F570Fa63e3109B85FD15678c175F1a02c9"
+  },
+  "verification": {
+    "sourcify": "exact_match",
+    "blockscout": true,
+    "basescan": "skipped_no_api_key"
+  },
+  "note": "Testnet only. Not Base mainnet."
+}

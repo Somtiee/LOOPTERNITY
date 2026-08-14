@@ -1,0 +1,48 @@
+{
+  "name": "@inco/lightning",
+  "version": "1.0.2",
+  "description": "Core Inco Lightning smart contracts for building confidential applications on EVM chains.",
+  "homepage": "https://docs.inco.org",
+  "keywords": [
+    "inco",
+    "confidential",
+    "encryption",
+    "evm",
+    "ethereum",
+    "solidity",
+    "smart-contracts"
+  ],
+  "repository": "https://github.com/Inco-fhevm/inco-monorepo",
+  "files": [
+    "src/",
+    "dumps/",
+    "CHANGELOG.md",
+    "manifest.yaml"
+  ],
+  "scripts": {
+    "lint": "forge lint && forge fmt --check",
+    "lint:fix": "forge fmt",
+    "generate": "bun run generate:libraries",
+    "generate:libraries": "bun run ../pega/lib/deployment/cmd/generate-libraries.ts",
+    "enrich:manifest": "bun run ../pega/lib/deployment/cmd/enrich-manifest.ts",
+    "publish:github": "bun publish --registry=https://npm.pkg.github.com",
+    "publish:npm": "npm publish --tag ${NPM_DIST_TAG:-alpha} --access public"
+  },
+  "dependencies": {
+    "@inco/shared": "0.1.0",
+    "@openzeppelin/contracts": "5.4.0",
+    "@openzeppelin/contracts-upgradeable": "5.4.0",
+    "@safe-global/safe-smart-account": "https://github.com/safe-global/safe-smart-account.git#dc437e8",
+    "ds-test": "https://github.com/dapphub/ds-test#e282159",
+    "forge-std": "https://github.com/foundry-rs/forge-std#2f05b30",
+    "tsx": "4.20.6"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "lcov-badge2": "^1.1.2"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

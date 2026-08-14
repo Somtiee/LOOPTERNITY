@@ -1,26 +1,251 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #05070f;
+  --foreground: #e8f4ff;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: var(--background);
+  color: var(--foreground);
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+}
+
+button {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.cta-contrast {
+  color: #0a0608;
+  background: linear-gradient(90deg, #ffe08a, #ffb347);
+}
+
+.juice-pop {
+  animation: juice-pop 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes juice-pop {
+  0% {
+    transform: scale(0.72);
+    opacity: 0;
+  }
+  55% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* —— LOOPTERNITY animated logo —— */
+.logo-stage {
+  --logo-accent: #ff6a2a;
+}
+
+.logo-aura {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  width: min(92vw, 520px);
+  height: 140px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(
+    ellipse at center,
+    color-mix(in srgb, var(--logo-accent) 45%, transparent) 0%,
+    transparent 70%
+  );
+  filter: blur(8px);
+  animation: logo-aura-pulse 2.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.logo-title {
+  color: #fff8f0;
+  text-shadow:
+    0 0 18px color-mix(in srgb, var(--logo-accent) 70%, transparent),
+    0 0 42px color-mix(in srgb, var(--logo-accent) 45%, transparent),
+    0 2px 0 rgba(0, 0, 0, 0.35);
+  animation: logo-breathe 3.6s ease-in-out infinite;
+}
+
+.logo-letter {
+  --letter-delay: 0s;
+  opacity: 0;
+  transform: translateY(28px) scale(0.7) skewX(-8deg);
+  animation:
+    logo-letter-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) var(--letter-delay)
+      forwards,
+    logo-letter-float 2.8s ease-in-out calc(var(--letter-delay) + 0.75s)
+      infinite;
+}
+
+.logo-tagline {
+  opacity: 0;
+  animation: logo-tag-in 0.8s ease forwards 1.1s;
+  letter-spacing: 0.42em;
+}
+
+.logo-particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.logo-particle {
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--logo-accent);
+  box-shadow: 0 0 10px var(--logo-accent);
+  opacity: 0;
+  animation: logo-spark 2.8s ease-in-out infinite;
+}
+
+.logo-particle-1 { --sx: -140px; --sy: -30px; animation-delay: 0.1s; }
+.logo-particle-2 { --sx: 120px; --sy: -40px; animation-delay: 0.35s; }
+.logo-particle-3 { --sx: -80px; --sy: 25px; animation-delay: 0.55s; }
+.logo-particle-4 { --sx: 160px; --sy: 10px; animation-delay: 0.75s; }
+.logo-particle-5 { --sx: -170px; --sy: 5px; animation-delay: 0.95s; }
+.logo-particle-6 { --sx: 40px; --sy: -55px; animation-delay: 1.15s; }
+.logo-particle-7 { --sx: -40px; --sy: -50px; animation-delay: 1.35s; }
+.logo-particle-8 { --sx: 90px; --sy: 30px; animation-delay: 0.2s; }
+.logo-particle-9 { --sx: -110px; --sy: -15px; animation-delay: 1.55s; }
+.logo-particle-10 { --sx: 150px; --sy: -20px; animation-delay: 0.45s; }
+.logo-particle-11 { --sx: -20px; --sy: 40px; animation-delay: 0.85s; }
+.logo-particle-12 { --sx: 70px; --sy: -10px; animation-delay: 1.75s; }
+.logo-particle-13 { --sx: -150px; --sy: 35px; animation-delay: 1.05s; }
+.logo-particle-14 { --sx: 20px; --sy: 45px; animation-delay: 1.45s; }
+
+.start-pulse {
+  animation: start-glow 2.2s ease-in-out infinite;
+}
+
+@keyframes logo-letter-in {
+  0% {
+    opacity: 0;
+    transform: translateY(28px) scale(0.65) skewX(-12deg);
+    filter: blur(6px);
+  }
+  60% {
+    opacity: 1;
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1) skewX(0deg);
+    filter: blur(0);
+  }
+}
+
+@keyframes logo-letter-float {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-3px) scale(1.03);
+  }
+}
+
+@keyframes logo-breathe {
+  0%,
+  100% {
+    letter-spacing: 0.18em;
+    filter: hue-rotate(0deg);
+  }
+  50% {
+    letter-spacing: 0.22em;
+    filter: hue-rotate(8deg);
+  }
+}
+
+@keyframes logo-aura-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: translate(-50%, -50%) scale(0.92);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.08);
+  }
+}
+
+@keyframes logo-tag-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes logo-spark {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.4);
+  }
+  25% {
+    opacity: 0.95;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--sx), var(--sy)) scale(1.2);
+  }
+}
+
+@keyframes start-glow {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo-letter,
+  .logo-title,
+  .logo-aura,
+  .logo-particle,
+  .logo-tagline,
+  .start-pulse,
+  .juice-pop {
+    animation: none !important;
+  }
+  .logo-letter,
+  .logo-tagline {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
 }
