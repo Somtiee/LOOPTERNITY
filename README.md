@@ -29,6 +29,7 @@ Copy `.env.example` → `.env.local`. Restart `npm run dev` after edits. Never c
 | `NEXT_PUBLIC_LOOPTERNITY_CONTRACT_ADDRESS` | `0x66b549F570Fa63e3109B85FD15678c175F1a02c9` |
 | `NEXT_PUBLIC_VAULT_DEPLOY_BLOCK` | `49966576` |
 | `NEXT_PUBLIC_P2E_ENTRY_FEE_USD` | `0.05` (display). On-chain min is `entryFeeWei`. |
+| `NEXT_PUBLIC_P2E_ENTRY_FEE_ETH` | **leave empty**. Exact ETH override only. `0.05` = 0.05 ETH, not $0.05. |
 | `NEXT_PUBLIC_P2E_TREASURY_ADDRESS` | `0xEacA26c65bd43803CB07319D5055bB7CF8DEC00c` (interim) |
 | `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | empty or your Reown id |
 

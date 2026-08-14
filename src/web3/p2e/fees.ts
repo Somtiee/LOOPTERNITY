@@ -4,9 +4,24 @@ export const P2E_ENTRY_FEE_USD = Number(
   process.env.NEXT_PUBLIC_P2E_ENTRY_FEE_USD?.trim() || "0.05",
 );
 
-/** Optional exact ETH override (skips USD→ETH conversion). */
+/**
+ * Optional exact ETH amount. Leave empty on Vercel.
+ * `0.05` here means 0.05 ETH (~$90), not $0.05. Do not copy the USD value.
+ */
 export const P2E_ENTRY_FEE_ETH_OVERRIDE =
   process.env.NEXT_PUBLIC_P2E_ENTRY_FEE_ETH?.trim() || "";
+
+/**
+ * Reject ETH overrides that look like a USD amount was pasted in
+ * (`0.05` ETH vs `$0.05`). Valid overrides are tiny (e.g. 0.00002).
+ */
+export function parseEthFeeOverride(raw: string, usd: number): number | null {
+  const n = Number(raw);
+  if (!raw || !Number.isFinite(n) || n <= 0) return null;
+  if (n >= 0.001) return null;
+  if (usd > 0 && n >= usd) return null;
+  return n;
+}
 
 /**
  * Display / docs only. Entry ETH is paid with vault `enterRun` (value ≥

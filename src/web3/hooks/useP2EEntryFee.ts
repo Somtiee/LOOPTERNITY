@@ -20,6 +20,7 @@ import { loopternityVaultAbi } from "@/web3/abi/loopternityVault";
 import {
   ethForUsd,
   fetchEthUsd,
+  parseEthFeeOverride,
   P2E_ENTRY_FEE_ETH_OVERRIDE,
   P2E_ENTRY_FEE_USD,
 } from "@/web3/p2e/fees";
@@ -30,9 +31,10 @@ function payErrorMessage(e: unknown, chainId: number): string {
   return walletTxError(e, chainId, "entry fee");
 }
 
-function maxWei(a: bigint, b: bigint): bigint {
-  return a > b ? a : b;
-}
+const ethOverride = parseEthFeeOverride(
+  P2E_ENTRY_FEE_ETH_OVERRIDE,
+  P2E_ENTRY_FEE_USD,
+);
 
 export function useP2EEntryFee() {
   const { address, isConnected } = useAccount();
@@ -64,7 +66,7 @@ export function useP2EEntryFee() {
   });
 
   useEffect(() => {
-    if (P2E_ENTRY_FEE_ETH_OVERRIDE) return;
+    if (ethOverride !== null) return;
     let alive = true;
     void fetchEthUsd().then((n) => {
       if (alive) setEthUsd(n);
@@ -74,22 +76,21 @@ export function useP2EEntryFee() {
     };
   }, []);
 
-  const displayEth = P2E_ENTRY_FEE_ETH_OVERRIDE
-    ? Number(P2E_ENTRY_FEE_ETH_OVERRIDE)
-    : ethUsd
-      ? ethForUsd(P2E_ENTRY_FEE_USD, ethUsd)
-      : 0.000027;
-  const displayWei = parseEther(displayEth.toFixed(8));
+  const quoteWei =
+    ethOverride !== null
+      ? parseEther(ethOverride.toFixed(8))
+      : parseEther(
+          (ethUsd ? ethForUsd(P2E_ENTRY_FEE_USD, ethUsd) : 0.000027).toFixed(8),
+        );
 
   const onchainFee =
     typeof feeQuery.data === "bigint" ? feeQuery.data : null;
   const onchainWeekId =
     typeof weekQuery.data === "string" ? weekQuery.data : null;
 
+  /** Live vault: pay `entryFeeWei` only. Never `max` with a USD-mistaken ETH env. */
   const payWei =
-    vaultIsDeployed && onchainFee !== null
-      ? maxWei(displayWei, onchainFee)
-      : displayWei;
+    vaultIsDeployed && onchainFee !== null ? onchainFee : quoteWei;
 
   const weekAligned =
     !vaultIsDeployed ||
@@ -137,7 +138,7 @@ export function useP2EEntryFee() {
           return false;
         }
 
-        const value = maxWei(displayWei, freshFee);
+        const value = freshFee;
         const hash = await writeContractAsync({
           address: LOOPTERNITY_CONTRACT_ADDRESS,
           abi: loopternityVaultAbi,
@@ -155,7 +156,7 @@ export function useP2EEntryFee() {
           throw new Error("Entry transaction failed on Base");
         }
       } else {
-        addPoolWei(displayWei);
+        addPoolWei(quoteWei);
       }
       return true;
     } catch (e) {
@@ -169,7 +170,7 @@ export function useP2EEntryFee() {
     address,
     chainId,
     clientWeekId,
-    displayWei,
+    quoteWei,
     feeQuery,
     isConnected,
     onBase,

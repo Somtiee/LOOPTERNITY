@@ -143,7 +143,7 @@ export function GameCanvas({
   return (
     <canvas
       ref={canvasRef}
-      className="h-full w-full touch-none select-none bg-[#12060a]"
+      className="mx-auto h-full max-h-full touch-none select-none bg-[#12060a]"
       aria-label="LOOPTERNITY game canvas"
     />
   );

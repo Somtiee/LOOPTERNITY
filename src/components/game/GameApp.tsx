@@ -303,8 +303,8 @@ export default function GameApp() {
         boxShadow: `inset 0 0 120px ${accent}14`,
       }}
     >
-      <div className="relative flex h-full max-h-dvh w-full max-w-[920px] flex-col">
-        <div className="relative min-h-0 w-full flex-1 overflow-hidden shadow-[0_0_80px_rgba(0,0,0,0.45)]">
+      <div className="relative flex h-full max-h-dvh w-full flex-col items-center">
+        <div className="relative flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden shadow-[0_0_80px_rgba(0,0,0,0.45)]">
           <GameCanvas
             key={runKey}
             themeId={runThemeId}
