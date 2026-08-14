@@ -1,19 +1,33 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 import { BASE_CHAIN } from "@/web3/config";
 
+const RESTORE_MS = 1500;
+
 /**
- * RainbowKit can show an address while wagmi `isConnected` is still false
- * (`status === "reconnecting"` after refresh). Treat a session address as
- * connected so START RUN does not open Connect a Wallet again.
+ * After refresh, wagmi can sit in `reconnecting` while a MetaMask-targeted
+ * connector fails. Do not block START on that. Address + chain are enough.
  */
 export function useWalletSession() {
   const { address, chainId, status, isReconnecting, isConnecting } =
     useAccount();
+  const [restoreExpired, setRestoreExpired] = useState(false);
 
-  const restoring =
+  const reconnecting =
     status === "reconnecting" || (status === "connecting" && Boolean(address));
+
+  useEffect(() => {
+    if (!reconnecting) {
+      setRestoreExpired(false);
+      return;
+    }
+    const id = window.setTimeout(() => setRestoreExpired(true), RESTORE_MS);
+    return () => window.clearTimeout(id);
+  }, [reconnecting]);
+
+  const restoring = reconnecting && !restoreExpired;
   const hasWallet = Boolean(address);
   const onBase = hasWallet && chainId === BASE_CHAIN.id;
 

@@ -149,14 +149,14 @@ export default function GameApp() {
   }, [mode, p2eWorld.themeId, themeId]);
 
   const startRun = useCallback(() => {
-    if (restoring || !onBase) return;
+    if (!onBase) return;
     if (mode === "p2e") {
       if (!p2eWorld.playable) return;
       setEntryOpen(true);
       return;
     }
     launchRun();
-  }, [launchRun, mode, onBase, p2eWorld.playable, restoring]);
+  }, [launchRun, mode, onBase, p2eWorld.playable]);
 
   const restart = useCallback(() => {
     audio.sfx("click");

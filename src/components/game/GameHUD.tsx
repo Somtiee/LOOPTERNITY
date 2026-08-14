@@ -88,6 +88,36 @@ export function GameHUD({
             <p className="mt-0.5 text-xs text-white/45">
               {mode === "p2e" ? `${hud.themeName} · Weekly` : `${hud.themeName} · ${difficultyLabel}`}
             </p>
+            {touchControls ? (
+              <div className="mt-2">
+                <p className="mb-1 text-[10px] uppercase tracking-[0.22em] text-white/40">
+                  Shields
+                </p>
+                <div className="flex gap-1.5">
+                  {Array.from({ length: Math.max(hud.maxShields, 1) }, (_, i) => {
+                    const on = i < hud.shields;
+                    return (
+                      <span
+                        key={i}
+                        className="h-3 w-6 rounded-sm border"
+                        style={
+                          on
+                            ? {
+                                borderColor: `${accent}cc`,
+                                background: `linear-gradient(90deg, ${accent}, #ffe08a)`,
+                                boxShadow: `0 0 12px ${accent}88`,
+                              }
+                            : {
+                                borderColor: "rgba(255,255,255,0.15)",
+                                background: "rgba(255,255,255,0.05)",
+                              }
+                        }
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -103,9 +133,12 @@ export function GameHUD({
 
       <div
         className={`flex items-end justify-between gap-3 ${
-          touchControls ? "pb-28" : ""
+          touchControls ? "pb-24" : ""
         }`}
       >
+        {touchControls ? (
+          <div />
+        ) : (
         <div>
           <p className="mb-1 text-[10px] uppercase tracking-[0.22em] text-white/40">
             Shields
@@ -139,6 +172,7 @@ export function GameHUD({
             </p>
           )}
         </div>
+        )}
 
         <div className="text-right">
           {hud.sinkStage > 0 && (
@@ -160,7 +194,7 @@ export function GameHUD({
             {hud.sinkStage > 0
               ? "Keep boosting or the rise takes you"
               : touchControls
-                ? "Stick · L/R dodge · up / BOOST"
+                ? "LEFT · RIGHT dodge · UP boost"
                 : "W / ↑ / Space"}
             <br />
             Height {Math.floor(hud.height)}m

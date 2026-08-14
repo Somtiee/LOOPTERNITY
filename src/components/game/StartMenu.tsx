@@ -62,6 +62,16 @@ export function StartMenu({
   const canStart = onBase && (mode !== "p2e" || p2eWorld.playable);
 
   const tryStart = () => {
+    if (hasWallet && onBase) {
+      if (mode === "p2e" && p2eWorld.status === "error") {
+        p2eWorld.refetch();
+        return;
+      }
+      if (!canStart) return;
+      audio.sfx("start");
+      onStart();
+      return;
+    }
     if (restoring) {
       pendingStart.current = true;
       return;
@@ -71,25 +81,10 @@ export function StartMenu({
       openConnectModal?.();
       return;
     }
-    if (!onBase) {
-      pendingStart.current = false;
-      void switchChainAsync({ chainId: BASE_CHAIN.id }).catch(() => {
-        openChainModal?.();
-      });
-      return;
-    }
-    if (mode === "p2e" && p2eWorld.status === "error") {
-      pendingStart.current = false;
-      p2eWorld.refetch();
-      return;
-    }
-    if (!canStart) {
-      pendingStart.current = false;
-      return;
-    }
     pendingStart.current = false;
-    audio.sfx("start");
-    onStart();
+    void switchChainAsync({ chainId: BASE_CHAIN.id }).catch(() => {
+      openChainModal?.();
+    });
   };
 
   useEffect(() => {
@@ -354,11 +349,9 @@ export function StartMenu({
               boxShadow: `0 0 40px ${accent}55`,
             }}
           >
-            {!hasWallet && !restoring
+            {!hasWallet
               ? "START RUN"
-              : restoring
-                ? "…"
-                : !onBase
+              : !onBase
                 ? `SWITCH TO ${CHAIN_SWITCH_LABEL}`
                 : mode === "p2e" && p2eWorld.status === "loading"
                   ? "LOADING…"

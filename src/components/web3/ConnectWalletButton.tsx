@@ -1,7 +1,7 @@
 "use client";
 
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { useAccount, useSwitchChain } from "wagmi";
+import { useSwitchChain } from "wagmi";
 import { BASE_CHAIN, CHAIN_SWITCH_LABEL } from "@/web3/config";
 
 type ConnectWalletButtonProps = {
@@ -21,7 +21,6 @@ export function ConnectWalletButton({
 }: ConnectWalletButtonProps) {
   const pad = size === "sm" ? "px-3 py-2 text-[10px]" : "px-4 py-2.5 text-xs";
   const { switchChainAsync } = useSwitchChain();
-  const { isReconnecting, isConnecting, isConnected } = useAccount();
 
   const shell = `inline-flex min-h-11 items-center justify-center rounded-xl border font-[family-name:var(--font-display)] tracking-[0.16em] transition active:scale-[0.98] ${pad}`;
 
@@ -36,8 +35,7 @@ export function ConnectWalletButton({
           openConnectModal,
           mounted,
         }) => {
-          const restoring =
-            !mounted || isReconnecting || (isConnecting && !isConnected);
+          const restoring = !mounted;
 
           if (restoring && !account) {
             return (

@@ -95,6 +95,14 @@ export class KeyboardInput {
     if (held) this.boostQueued = true;
   }
 
+  setHeldLeft(on: boolean) {
+    this.left = on;
+  }
+
+  setHeldRight(on: boolean) {
+    this.right = on;
+  }
+
   setTouchAxis(axis: MoveAxis) {
     this.left = axis < 0;
     this.right = axis > 0;

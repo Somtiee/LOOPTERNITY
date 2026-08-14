@@ -23,7 +23,8 @@ const wagmiStorage = createStorage({
   key: "loopternity.wagmi",
 });
 
-const reconnectInjected = injected({
+/** Single EIP-1193 connector. Do not also MIPD-discover MetaMask — that restore fails when Rabby owns the page. */
+export const injectedConnector = injected({
   shimDisconnect: false,
 });
 
@@ -50,14 +51,13 @@ const rainbowConnectors = walletConnectProjectId
   : [];
 
 /**
- * Injected connector uses `shimDisconnect: false` so Rabby/MetaMask stay
- * connected after refresh. Do not import this module from a Server Component.
+ * Do not import this module from a Server Component.
  */
 export const wagmiConfig = createConfig({
   chains: [BASE_CHAIN],
-  connectors: [reconnectInjected, ...rainbowConnectors],
+  connectors: [injectedConnector, ...rainbowConnectors],
   storage: wagmiStorage,
   transports,
   ssr: true,
-  multiInjectedProviderDiscovery: true,
+  multiInjectedProviderDiscovery: false,
 });
