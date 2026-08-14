@@ -1,14 +1,16 @@
 export type MoveAxis = -1 | 0 | 1;
 
 /**
- * Imperative keyboard listener for the canvas game loop.
+ * Imperative keyboard / analog listener for the canvas game loop.
  * Attach once; poll axis / one-shots each frame.
  */
 export class KeyboardInput {
   private left = false;
   private right = false;
+  private analogX = 0;
   private restartQueued = false;
   private boostQueued = false;
+  private boostHeld = false;
   private attached = false;
 
   private readonly onKeyDown = (e: KeyboardEvent) => {
@@ -48,9 +50,15 @@ export class KeyboardInput {
     window.removeEventListener("keydown", this.onKeyDown);
     window.removeEventListener("keyup", this.onKeyUp);
     this.attached = false;
+    this.analogX = 0;
+    this.boostHeld = false;
+    this.left = false;
+    this.right = false;
   }
 
-  axis(): MoveAxis {
+  /** -1..1. Analog stick wins over keys when deflected. */
+  axis(): number {
+    if (Math.abs(this.analogX) > 0.18) return this.analogX;
     if (this.left && !this.right) return -1;
     if (this.right && !this.left) return 1;
     return 0;
@@ -63,9 +71,11 @@ export class KeyboardInput {
   }
 
   consumeBoost(): boolean {
-    if (!this.boostQueued) return false;
-    this.boostQueued = false;
-    return true;
+    if (this.boostQueued) {
+      this.boostQueued = false;
+      return true;
+    }
+    return this.boostHeld;
   }
 
   requestRestart() {
@@ -74,6 +84,15 @@ export class KeyboardInput {
 
   requestBoost() {
     this.boostQueued = true;
+  }
+
+  setAnalog(x: number) {
+    this.analogX = Math.max(-1, Math.min(1, x));
+  }
+
+  setBoostHeld(held: boolean) {
+    this.boostHeld = held;
+    if (held) this.boostQueued = true;
   }
 
   setTouchAxis(axis: MoveAxis) {

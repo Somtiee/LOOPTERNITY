@@ -15,7 +15,13 @@ NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=
 # charges entryFeeWei (~$0.05).
 
 # Paste your Reown project id into NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID (same as local .env.local).
-# Leave empty for injected wallets only.
+# Needed on mobile so WalletConnect stays connected after refresh.
+
+# Normal-mode personal bests (wallet-synced across phone + desktop):
+# Vercel → Storage → Create KV Database (Hobby free). It injects:
+#   KV_REST_API_URL
+#   KV_REST_API_TOKEN
+# Without KV, Normal PBs stay on that browser only.
 
 # GitHub Actions keeper (Sunday 00:05 UTC)
 # Repo → Settings → Secrets and variables → Actions:

@@ -6,6 +6,7 @@ import {
   getPlayer,
   listPlayers,
   registerPlayer,
+  syncWalletNormalBests,
   weeklyStandings,
 } from "@/web3/p2e/store";
 import { msUntilWeekEnd, sealedThemeForWeek, weekIdFromDate } from "@/web3/p2e/week";
@@ -47,8 +48,13 @@ export function usePlayerRegistry() {
   }, [refreshLocal, refetchVerified]);
 
   useEffect(() => {
-    if (isConnected && address) registerPlayer(address);
+    if (!isConnected || !address) {
+      refreshLocal();
+      return;
+    }
+    registerPlayer(address);
     refreshLocal();
+    void syncWalletNormalBests(address).then(() => refreshLocal());
   }, [address, isConnected, refreshLocal]);
 
   useEffect(() => {

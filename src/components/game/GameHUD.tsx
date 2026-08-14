@@ -16,6 +16,7 @@ type GameHUDProps = {
   onPauseToggle: () => void;
   onRestart: () => void;
   onMenu: () => void;
+  touchControls?: boolean;
 };
 
 function HudIconBtn({
@@ -53,6 +54,7 @@ export function GameHUD({
   onPauseToggle,
   onRestart,
   onMenu,
+  touchControls = false,
 }: GameHUDProps) {
   const showOverlay = paused && hud.phase !== "gameover";
 
@@ -99,7 +101,11 @@ export function GameHUD({
         </div>
       </header>
 
-      <div className="flex items-end justify-between gap-3">
+      <div
+        className={`flex items-end justify-between gap-3 ${
+          touchControls ? "pb-28" : ""
+        }`}
+      >
         <div>
           <p className="mb-1 text-[10px] uppercase tracking-[0.22em] text-white/40">
             Shields
@@ -153,7 +159,9 @@ export function GameHUD({
           <p className="text-[11px] text-white/35">
             {hud.sinkStage > 0
               ? "Keep boosting or the rise takes you"
-              : "W / ↑ / Space · tap top"}
+              : touchControls
+                ? "Stick · L/R dodge · up / BOOST"
+                : "W / ↑ / Space"}
             <br />
             Height {Math.floor(hud.height)}m
           </p>

@@ -92,6 +92,7 @@ button {
 
 .logo-letter {
   --letter-delay: 0s;
+  flex: 0 0 auto;
   opacity: 0;
   transform: translateY(28px) scale(0.7) skewX(-8deg);
   animation:
@@ -169,18 +170,16 @@ button {
     transform: translateY(0) scale(1);
   }
   50% {
-    transform: translateY(-3px) scale(1.03);
+    transform: translateY(-2px) scale(1);
   }
 }
 
 @keyframes logo-breathe {
   0%,
   100% {
-    letter-spacing: 0.18em;
     filter: hue-rotate(0deg);
   }
   50% {
-    letter-spacing: 0.22em;
     filter: hue-rotate(8deg);
   }
 }

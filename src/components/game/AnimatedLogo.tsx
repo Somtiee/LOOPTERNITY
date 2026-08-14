@@ -24,15 +24,17 @@ export function AnimatedLogo({
       </div>
 
       <h1
-        className={`logo-title relative z-10 text-center font-[family-name:var(--font-display)] font-bold tracking-[0.18em] ${
-          compact ? "text-3xl sm:text-4xl" : "text-4xl sm:text-5xl md:text-6xl"
+        className={`logo-title relative z-10 mx-auto flex w-full max-w-full flex-nowrap items-baseline justify-center overflow-hidden whitespace-nowrap font-[family-name:var(--font-display)] font-bold ${
+          compact
+            ? "text-[clamp(1.15rem,8vw,2.25rem)] tracking-[0.04em] sm:tracking-[0.12em]"
+            : "text-[clamp(1.2rem,7.4vw,3.75rem)] tracking-[0.04em] sm:tracking-[0.12em] md:tracking-[0.16em]"
         }`}
         aria-label="LOOPTERNITY"
       >
         {LETTERS.map((letter, i) => (
           <span
             key={`${letter}-${i}`}
-            className="logo-letter inline-block"
+            className="logo-letter"
             style={{ ["--letter-delay" as string]: `${0.08 + i * 0.055}s` }}
           >
             {letter}
@@ -41,7 +43,7 @@ export function AnimatedLogo({
       </h1>
 
       <p
-        className={`logo-tagline relative z-10 mt-3 text-center font-[family-name:var(--font-display)] tracking-[0.42em] text-white/50 ${
+        className={`logo-tagline relative z-10 mt-3 text-center font-[family-name:var(--font-display)] tracking-[0.28em] text-white/50 sm:tracking-[0.42em] ${
           compact ? "text-[9px]" : "text-[10px] sm:text-xs"
         }`}
       >

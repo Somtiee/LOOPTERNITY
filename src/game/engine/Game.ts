@@ -353,7 +353,7 @@ export class Game {
     const axis = this.input.axis();
     if (axis !== 0) {
       this.player.vx += axis * PLAYER.accelX * dt;
-      this.player.facing = axis;
+      this.player.facing = axis < 0 ? -1 : 1;
     } else {
       const fr = PLAYER.frictionX * dt;
       if (Math.abs(this.player.vx) <= fr) this.player.vx = 0;

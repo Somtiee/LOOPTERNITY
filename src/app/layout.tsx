@@ -1,6 +1,9 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
+import { cookieToInitialState } from "wagmi";
 import { Orbitron, Space_Grotesk } from "next/font/google";
 import { Web3Providers } from "@/web3/Web3Providers";
+import { wagmiConfig } from "@/web3/config";
 import "./globals.css";
 
 const display = Orbitron({
@@ -30,15 +33,18 @@ export const viewport: Viewport = {
   themeColor: "#05070f",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const cookie = (await headers()).get("cookie") ?? undefined;
+  const initialState = cookieToInitialState(wagmiConfig, cookie);
+
   return (
     <html lang="en" className={`${display.variable} ${sans.variable} h-full`}>
       <body className="min-h-dvh overflow-hidden bg-[#05070f] font-sans text-slate-100 antialiased">
-        <Web3Providers>{children}</Web3Providers>
+        <Web3Providers initialState={initialState}>{children}</Web3Providers>
       </body>
     </html>
   );

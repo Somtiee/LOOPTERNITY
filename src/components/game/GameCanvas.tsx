@@ -16,6 +16,8 @@ type GameCanvasProps = {
   paused?: boolean;
   inputRef: MutableRefObject<KeyboardInput | null>;
   keyboardRestart?: boolean;
+  /** When true, skip split-screen tap controls (on-screen analog is used). */
+  disableCanvasTouch?: boolean;
 };
 
 export function GameCanvas({
@@ -27,6 +29,7 @@ export function GameCanvas({
   paused = false,
   inputRef,
   keyboardRestart = true,
+  disableCanvasTouch = false,
 }: GameCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const gameRef = useRef<Game | null>(null);
@@ -113,10 +116,12 @@ export function GameCanvas({
     const onResize = () => fit();
     window.addEventListener("resize", onResize);
     window.visualViewport?.addEventListener("resize", onResize);
-    canvas.addEventListener("pointerdown", onPointerDown);
-    canvas.addEventListener("pointermove", onPointerMove);
-    canvas.addEventListener("pointerup", onPointerUp);
-    canvas.addEventListener("pointercancel", onPointerUp);
+    if (!disableCanvasTouch) {
+      canvas.addEventListener("pointerdown", onPointerDown);
+      canvas.addEventListener("pointermove", onPointerMove);
+      canvas.addEventListener("pointerup", onPointerUp);
+      canvas.addEventListener("pointercancel", onPointerUp);
+    }
 
     return () => {
       window.removeEventListener("resize", onResize);
@@ -130,7 +135,7 @@ export function GameCanvas({
       inputRef.current = null;
       gameRef.current = null;
     };
-  }, [characterId, themeId, difficultyId, inputRef, keyboardRestart]);
+  }, [characterId, themeId, difficultyId, inputRef, keyboardRestart, disableCanvasTouch]);
 
   useEffect(() => {
     if (restartToken > 0) gameRef.current?.restart();

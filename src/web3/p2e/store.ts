@@ -2,6 +2,7 @@ import type { CharacterId, DifficultyId } from "@/game/types";
 import { DEFAULT_CHARACTER, isCharacterId } from "@/game/characters";
 import { sealedThemeForWeek, weekIdFromDate } from "./week";
 import { rankWeek, settlePayouts, skillScore, TREASURY_BPS } from "./ranking";
+import { coerceBests, emptyBests, mergeNormalBests } from "./bests";
 import type {
   AddressKey,
   NormalBests,
@@ -15,19 +16,6 @@ const KEY = "loopternity.p2e.v1";
 const GUEST_CHARACTER_KEY = "loopternity.character.v1";
 /** Device-only Normal PBs. Never merged into a wallet profile. */
 const GUEST_BESTS_KEY = "loopternity.normalBest.guest.v1";
-
-function emptyBests(): NormalBests {
-  return { easy: 0, medium: 0, hard: 0 };
-}
-
-function coerceBests(value: unknown): NormalBests {
-  const raw = value && typeof value === "object" ? (value as Partial<NormalBests>) : {};
-  return {
-    easy: Number(raw.easy) || 0,
-    medium: Number(raw.medium) || 0,
-    hard: Number(raw.hard) || 0,
-  };
-}
 
 function emptyDb(): P2EDatabase {
   return { players: {}, week: null, archive: [] };
@@ -231,11 +219,71 @@ export function recordNormalBest(
   if (isNewBest) profile.normalBest[difficulty] = survivalSeconds;
   db.players[key] = profile;
   writeDb(db);
+  pushBestsToCloud(address, profile.normalBest);
   return {
     isNewBest,
     previous,
     current: profile.normalBest[difficulty],
   };
+}
+
+/** Merge cloud/local Normal PBs for this wallet (max of each difficulty). */
+export function applyNormalBests(
+  address: AddressKey,
+  incoming: NormalBests,
+): NormalBests {
+  const db = readDb();
+  const key = address.toLowerCase();
+  const now = Date.now();
+  const existing = db.players[key];
+  const profile: PlayerProfile = existing
+    ? {
+        ...existing,
+        address,
+        lastSeen: now,
+        normalBest: mergeNormalBests(coerceBests(existing.normalBest), incoming),
+        characterId: existing.characterId ?? getGuestCharacterId(),
+      }
+    : {
+        address,
+        registeredAt: now,
+        lastSeen: now,
+        normalBest: coerceBests(incoming),
+        characterId: getGuestCharacterId(),
+      };
+  db.players[key] = profile;
+  writeDb(db);
+  return profile.normalBest;
+}
+
+function pushBestsToCloud(address: AddressKey, bests: NormalBests) {
+  if (typeof window === "undefined") return;
+  void fetch("/api/normal-bests", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ address, bests }),
+  }).catch(() => {});
+}
+
+/** Pull this wallet's Normal PBs from the server and merge into local storage. */
+export async function syncWalletNormalBests(
+  address: AddressKey,
+): Promise<NormalBests> {
+  const local = getPlayer(address)?.normalBest ?? emptyBests();
+  if (typeof window === "undefined") return local;
+  try {
+    const res = await fetch(
+      `/api/normal-bests?address=${encodeURIComponent(address)}`,
+    );
+    if (!res.ok) return local;
+    const json = (await res.json()) as { bests?: unknown };
+    const merged = mergeNormalBests(local, coerceBests(json.bests));
+    applyNormalBests(address, merged);
+    pushBestsToCloud(address, merged);
+    return merged;
+  } catch {
+    return local;
+  }
 }
 
 export function currentWeek(): WeekState {

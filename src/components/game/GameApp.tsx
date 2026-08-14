@@ -35,6 +35,8 @@ import { DangerProximityBar } from "./DangerProximityBar";
 import { GameCanvas } from "./GameCanvas";
 import { GameHUD } from "./GameHUD";
 import { StartMenu } from "./StartMenu";
+import { VirtualPad } from "./VirtualPad";
+import { useCoarsePointer } from "@/game/input/useCoarsePointer";
 
 type Screen = "menu" | "playing";
 
@@ -61,6 +63,7 @@ export default function GameApp() {
   const { address, isConnected, chainId } = useAccount();
   const { refresh } = usePlayerRegistry();
   const p2eWorld = useOnchainWeekTheme();
+  const coarsePointer = useCoarsePointer();
   const [screen, setScreen] = useState<Screen>("menu");
   const [mode, setMode] = useState<GameMode>("normal");
   const [themeId, setThemeId] = useState<ThemeId>(DEFAULT_THEME);
@@ -315,6 +318,7 @@ export default function GameApp() {
             paused={paused}
             inputRef={inputRef}
             keyboardRestart={mode !== "p2e"}
+            disableCanvasTouch={coarsePointer}
           />
           <GameHUD
             hud={hud}
@@ -327,6 +331,16 @@ export default function GameApp() {
             onPauseToggle={togglePause}
             onRestart={restart}
             onMenu={backToMenu}
+            touchControls={coarsePointer}
+          />
+          <VirtualPad
+            inputRef={inputRef}
+            accent={accent}
+            visible={
+              coarsePointer &&
+              !paused &&
+              hud.phase !== "gameover"
+            }
           />
         </div>
 

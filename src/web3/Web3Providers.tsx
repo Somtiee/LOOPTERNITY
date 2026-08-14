@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { WagmiProvider } from "wagmi";
+import { WagmiProvider, type State } from "wagmi";
 import { RainbowKitProvider, darkTheme } from "@rainbow-me/rainbowkit";
 import "@rainbow-me/rainbowkit/styles.css";
 import {
@@ -20,7 +20,13 @@ const loopternityTheme = darkTheme({
   overlayBlur: "small",
 });
 
-export function Web3Providers({ children }: { children: ReactNode }) {
+export function Web3Providers({
+  children,
+  initialState,
+}: {
+  children: ReactNode;
+  initialState?: State;
+}) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -42,7 +48,11 @@ export function Web3Providers({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <WagmiProvider config={wagmiConfig} reconnectOnMount>
+    <WagmiProvider
+      config={wagmiConfig}
+      initialState={initialState}
+      reconnectOnMount
+    >
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider
           theme={loopternityTheme}

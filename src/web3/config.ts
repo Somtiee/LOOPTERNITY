@@ -1,7 +1,7 @@
 import { getDefaultConfig } from "@rainbow-me/rainbowkit";
 import type { Transport } from "viem";
+import { cookieStorage, createConfig, createStorage, fallback, http } from "wagmi";
 import { injected } from "wagmi/connectors";
-import { createConfig, fallback, http } from "wagmi";
 import { base, baseSepolia } from "wagmi/chains";
 
 /**
@@ -87,6 +87,11 @@ const transports: Record<typeof base.id | typeof baseSepolia.id, Transport> = {
   [baseSepolia.id]: chainTransport,
 };
 
+const wagmiStorage = createStorage({
+  storage: cookieStorage,
+  key: "loopternity.wagmi",
+});
+
 /**
  * RainbowKit `getDefaultConfig` needs a Reown/WalletConnect Cloud project id
  * (free: https://cloud.reown.com). Without one, browser wallets still work via
@@ -99,6 +104,7 @@ export const wagmiConfig = walletConnectProjectId
       projectId: walletConnectProjectId,
       chains: [BASE_CHAIN],
       ssr: true,
+      storage: wagmiStorage,
       transports,
     })
   : createConfig({
@@ -108,6 +114,7 @@ export const wagmiConfig = walletConnectProjectId
           shimDisconnect: false,
         }),
       ],
+      storage: wagmiStorage,
       transports,
       ssr: true,
       multiInjectedProviderDiscovery: true,
