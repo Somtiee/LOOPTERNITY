@@ -361,7 +361,7 @@ export class Game {
     }
     this.player.vx = clamp(this.player.vx, -PLAYER.maxSpeedX, PLAYER.maxSpeedX);
 
-    // Pull schedule: 18s → ×1, 45s → ×2, 80s → ×3, then pulse
+    // Pull schedule: 14s → ×1, 45s → ×2, 80s → ×3, then pulse
     const progress = sinkProgress(this.time);
     if (progress.eventId > this.sinkEventId) {
       this.sinkEventId = progress.eventId;

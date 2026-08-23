@@ -23,27 +23,27 @@ export const PLAYER = {
 
 export const DANGER = {
   /** Start just under the view so magma/gas/ice is on-screen from the first seconds. */
-  startOffset: 200,
+  startOffset: 165,
   waveAmp: 10,
   waveFreq: 2.4,
   /** Lurk distance — rise stays near the bottom of the screen, not hundreds of px off-camera. */
-  maxGap: 220,
-  warnGap: 210,
+  maxGap: 185,
+  warnGap: 190,
   /** On a rise hit, shove it far below so the next hits aren't instant. */
   hitPushback: 480,
   reliefTime: 2.8,
   /** Extra chase speed while the player is farther than maxGap (after a hit-shove, etc.). */
-  catchUpSpeed: 480,
+  catchUpSpeed: 560,
 } as const;
 
 /**
  * Timed undertow toward the rise. Strength caps at maxStage;
  * later pulses re-trigger relief without stacking power forever.
  *
- * Schedule: 18s → ×1, 45s → ×2, 80s → ×3, then every 50s a pulse.
+ * Schedule: 14s → ×1, 45s → ×2, 80s → ×3, then every 50s a pulse.
  */
 export const SINK = {
-  firstAt: 18,
+  firstAt: 14,
   secondAt: 45,
   thirdAt: 80,
   /** After ×3, re-pulse at ~2:10, 3:00… */
@@ -65,9 +65,9 @@ export const SINK = {
   } as Record<DifficultyId, number>,
   /** Extra danger rise speed per stage */
   dangerBonusPerStage: {
-    easy: 28,
-    medium: 42,
-    hard: 58,
+    easy: 34,
+    medium: 50,
+    hard: 66,
   } as Record<DifficultyId, number>,
   /** Safe gap shrinks each stage so the bar stays hungry */
   gapShrinkPerStage: 28,
@@ -115,8 +115,8 @@ export const DIFFICULTIES: Record<DifficultyId, DifficultyConfig> = {
     id: "easy",
     label: "Easy",
     climbSpeed: 300,
-    dangerBaseSpeed: 235,
-    dangerAccel: 2.1,
+    dangerBaseSpeed: 252,
+    dangerAccel: 2.5,
     obstacleSpacing: 230,
     obstacleSpeedMul: 0.7,
     enemySpawnMul: 1.25,
@@ -125,8 +125,8 @@ export const DIFFICULTIES: Record<DifficultyId, DifficultyConfig> = {
     id: "medium",
     label: "Medium",
     climbSpeed: 330,
-    dangerBaseSpeed: 275,
-    dangerAccel: 2.8,
+    dangerBaseSpeed: 292,
+    dangerAccel: 3.3,
     obstacleSpacing: 185,
     obstacleSpeedMul: 1,
     enemySpawnMul: 1,
@@ -135,8 +135,8 @@ export const DIFFICULTIES: Record<DifficultyId, DifficultyConfig> = {
     id: "hard",
     label: "Hard",
     climbSpeed: 360,
-    dangerBaseSpeed: 315,
-    dangerAccel: 3.6,
+    dangerBaseSpeed: 332,
+    dangerAccel: 4.1,
     obstacleSpacing: 150,
     obstacleSpeedMul: 1.25,
     enemySpawnMul: 0.75,
