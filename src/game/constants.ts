@@ -22,36 +22,41 @@ export const PLAYER = {
 } as const;
 
 export const DANGER = {
-  startOffset: 340,
+  /** Start just under the view so magma/gas/ice is on-screen from the first seconds. */
+  startOffset: 200,
   waveAmp: 10,
   waveFreq: 2.4,
-  maxGap: 560,
-  warnGap: 220,
+  /** Lurk distance — rise stays near the bottom of the screen, not hundreds of px off-camera. */
+  maxGap: 220,
+  warnGap: 210,
+  /** On a rise hit, shove it far below so the next hits aren't instant. */
   hitPushback: 480,
   reliefTime: 2.8,
+  /** Extra chase speed while the player is farther than maxGap (after a hit-shove, etc.). */
+  catchUpSpeed: 480,
 } as const;
 
 /**
  * Timed undertow toward the rise. Strength caps at maxStage;
  * later pulses re-trigger relief without stacking power forever.
  *
- * Schedule: 30s → ×1, 2:00 → ×2, 4:00 → ×3, then every 2 min a pulse.
+ * Schedule: 18s → ×1, 45s → ×2, 80s → ×3, then every 50s a pulse.
  */
 export const SINK = {
-  firstAt: 30,
-  secondAt: 120,
-  thirdAt: 240,
-  /** After ×3, re-pulse at 6:00, 8:00, 10:00… */
-  pulseEverySec: 120,
+  firstAt: 18,
+  secondAt: 45,
+  thirdAt: 80,
+  /** After ×3, re-pulse at ~2:10, 3:00… */
+  pulseEverySec: 50,
   /** Hard ceiling on pull strength */
   maxStage: 3,
-  /** On each pull event, shove the rise away so the bar sits here (safer) */
-  stageReliefProximity: 0.5,
+  /** On each pull event, give a short visible breath — still on-screen. */
+  stageReliefProximity: 0.62,
   /**
-   * Undertow alone can never fill the proximity bar past this.
-   * You won't get yanked into the rise while the bar still looks mild.
+   * Stop the undertow in the hot zone so the last stretch is dodge/boost.
+   * Danger speed is still allowed to finish the catch (no teleport-away cap).
    */
-  maxProximity: 0.25,
+  maxProximity: 0.82,
   /** Downward pull (px/s) per stage */
   pullPerStage: {
     easy: 55,
@@ -60,13 +65,13 @@ export const SINK = {
   } as Record<DifficultyId, number>,
   /** Extra danger rise speed per stage */
   dangerBonusPerStage: {
-    easy: 20,
-    medium: 32,
-    hard: 48,
+    easy: 28,
+    medium: 42,
+    hard: 58,
   } as Record<DifficultyId, number>,
   /** Safe gap shrinks each stage so the bar stays hungry */
-  gapShrinkPerStage: 50,
-  minGap: 250,
+  gapShrinkPerStage: 28,
+  minGap: 140,
 } as const;
 
 /** stage = pull strength (0–maxStage); eventId bumps on every pull pulse */
@@ -110,8 +115,8 @@ export const DIFFICULTIES: Record<DifficultyId, DifficultyConfig> = {
     id: "easy",
     label: "Easy",
     climbSpeed: 300,
-    dangerBaseSpeed: 70,
-    dangerAccel: 0.9,
+    dangerBaseSpeed: 235,
+    dangerAccel: 2.1,
     obstacleSpacing: 230,
     obstacleSpeedMul: 0.7,
     enemySpawnMul: 1.25,
@@ -120,8 +125,8 @@ export const DIFFICULTIES: Record<DifficultyId, DifficultyConfig> = {
     id: "medium",
     label: "Medium",
     climbSpeed: 330,
-    dangerBaseSpeed: 88,
-    dangerAccel: 1.5,
+    dangerBaseSpeed: 275,
+    dangerAccel: 2.8,
     obstacleSpacing: 185,
     obstacleSpeedMul: 1,
     enemySpawnMul: 1,
@@ -130,8 +135,8 @@ export const DIFFICULTIES: Record<DifficultyId, DifficultyConfig> = {
     id: "hard",
     label: "Hard",
     climbSpeed: 360,
-    dangerBaseSpeed: 108,
-    dangerAccel: 2.2,
+    dangerBaseSpeed: 315,
+    dangerAccel: 3.6,
     obstacleSpacing: 150,
     obstacleSpeedMul: 1.25,
     enemySpawnMul: 0.75,

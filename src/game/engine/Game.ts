@@ -110,9 +110,9 @@ export class Game {
   private bannerText = "";
   private sinkStage = 0;
   private sinkEventId = 0;
-  /** Next frame: apply halfway safety shove after a new pull stage */
+  /** Next frame: apply a short on-screen breath after a new pull stage */
   private sinkReliefPending = false;
-  /** Brief window after a new stage where the halfway bar is held */
+  /** Brief window after a new stage where undertow is paused */
   private sinkReliefT = 0;
   private paused = false;
   private stars: { x: number; y: number; r: number; tw: number }[] = [];
@@ -361,13 +361,13 @@ export class Game {
     }
     this.player.vx = clamp(this.player.vx, -PLAYER.maxSpeedX, PLAYER.maxSpeedX);
 
-    // Pull schedule: 30s → ×1, 2:00 → ×2, 4:00 → ×3, then pulse every 2 min
+    // Pull schedule: 18s → ×1, 45s → ×2, 80s → ×3, then pulse
     const progress = sinkProgress(this.time);
     if (progress.eventId > this.sinkEventId) {
       this.sinkEventId = progress.eventId;
       this.sinkStage = progress.stage;
       this.sinkReliefPending = true;
-      this.sinkReliefT = 1.6;
+      this.sinkReliefT = 1.1;
       const label = THEME_META[this.theme.id].dangerLabel.toUpperCase();
       const capped =
         this.sinkStage >= SINK.maxStage ? " (MAX)" : "";
@@ -382,7 +382,7 @@ export class Game {
       );
     }
 
-    // Undertow only pulls while the bar is under the 25% ceiling (never yanks into the rise)
+    // Undertow pulls until the hot zone; the rise itself can still finish the catch
     const proxNow = this.computeDangerProximity();
     const sinkEngaged =
       this.sinkStage > 0 &&
@@ -416,22 +416,15 @@ export class Game {
       SINK.minGap,
       DANGER.maxGap - this.sinkStage * SINK.gapShrinkPerStage,
     );
-    if (
-      this.dangerReliefT <= 0 &&
-      this.player.y - this.dangerY > maxGap
-    ) {
-      this.dangerY = this.player.y - maxGap;
+    const extraGap = this.player.y - this.dangerY - maxGap;
+    if (this.dangerReliefT <= 0 && extraGap > 0) {
+      this.dangerY += Math.min(extraGap, DANGER.catchUpSpeed * dt);
     }
 
-    // New pull stage: empty bar to ~halfway so you get a safe breath
+    // New pull stage: a short on-screen breath, then the hunt resumes
     if (this.sinkReliefPending) {
       this.setDangerProximity(SINK.stageReliefProximity);
       this.sinkReliefPending = false;
-    } else if (this.sinkStage > 0 && this.sinkReliefT <= 0) {
-      // Undertow alone can never push the bar past 25%
-      if (this.computeDangerProximity() > SINK.maxProximity) {
-        this.setDangerProximity(SINK.maxProximity);
-      }
     }
 
     const gap = this.player.y - this.dangerY;
