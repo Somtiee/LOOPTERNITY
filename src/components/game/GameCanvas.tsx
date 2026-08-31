@@ -5,7 +5,10 @@ import { audio } from "@/game/audio/AudioManager";
 import { WORLD } from "@/game/constants";
 import { Game } from "@/game/engine/Game";
 import { KeyboardInput } from "@/game/input/KeyboardInput";
-import type { CharacterId, DifficultyId, HudSnapshot, ThemeId } from "@/game/types";
+import type { CharacterId, DifficultyId, GameMode, HudSnapshot, ThemeId } from "@/game/types";
+import type { LoopiternRarityId } from "@/game/mintTiers";
+import type { RunModifiers } from "@/game/traits";
+import { VANILLA_MODIFIERS } from "@/game/traits";
 
 type GameCanvasProps = {
   themeId: ThemeId;
@@ -18,6 +21,12 @@ type GameCanvasProps = {
   keyboardRestart?: boolean;
   /** When true, skip split-screen tap controls (on-screen analog is used). */
   disableCanvasTouch?: boolean;
+  /** P2M must pass vanilla. Normal uses equipped LOOPITERN traits. */
+  modifiers?: RunModifiers;
+  mode?: GameMode;
+  equippedRarity?: LoopiternRarityId | null;
+  /** Equipped token id — derives the climb rig's DNA palette. */
+  equippedTokenId?: number | null;
 };
 
 export function GameCanvas({
@@ -30,11 +39,20 @@ export function GameCanvas({
   inputRef,
   keyboardRestart = true,
   disableCanvasTouch = false,
+  modifiers = VANILLA_MODIFIERS,
+  mode = "normal",
+  equippedRarity = null,
+  equippedTokenId = null,
 }: GameCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const gameRef = useRef<Game | null>(null);
   const onHudRef = useRef(onHud);
   onHudRef.current = onHud;
+  const effectiveModifiers =
+    mode === "normal" ? modifiers : VANILLA_MODIFIERS;
+  const effectiveRarity = mode === "normal" ? equippedRarity : null;
+  const effectiveTokenId =
+    mode === "normal" && effectiveRarity != null ? equippedTokenId : null;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -56,8 +74,14 @@ export function GameCanvas({
         onEnemyAppear: () => audio.sfx("enemy"),
         onGameOver: () => audio.sfx("gameover"),
         onNearMiss: () => audio.sfx("nearMiss"),
+        onFreeze: () => audio.sfx("shield"),
+        onTsunami: () => audio.sfx("boost"),
       },
       keyboardRestart,
+      modifiers: effectiveModifiers,
+      mode,
+      equippedRarity: effectiveRarity,
+      equippedTokenId: effectiveTokenId,
     });
     gameRef.current = game;
 
@@ -135,7 +159,22 @@ export function GameCanvas({
       inputRef.current = null;
       gameRef.current = null;
     };
-  }, [characterId, themeId, difficultyId, inputRef, keyboardRestart, disableCanvasTouch]);
+  }, [
+    characterId,
+    themeId,
+    difficultyId,
+    inputRef,
+    keyboardRestart,
+    disableCanvasTouch,
+    mode,
+    effectiveRarity,
+    effectiveTokenId,
+    effectiveModifiers.maxShields,
+    effectiveModifiers.speedMul,
+    effectiveModifiers.freezeCharges,
+    effectiveModifiers.freezeDuration,
+    effectiveModifiers.tsunamiCharges,
+  ]);
 
   useEffect(() => {
     if (restartToken > 0) gameRef.current?.restart();

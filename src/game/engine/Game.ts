@@ -17,15 +17,20 @@ import {
   sinkProgress,
 } from "../constants";
 import { DEFAULT_CHARACTER, getCharacter } from "../characters";
+import { loopiternRigPalette } from "../loopiternArt";
+import { dnaFromTokenId } from "../loopiternTraits";
 import { KeyboardInput } from "../input/KeyboardInput";
 import { aabb, clamp, lerp, randRange } from "../math";
 import { drawCharacter } from "../render/drawCharacter";
+import { drawLoopitern } from "../render/drawLoopitern";
 import { getTheme } from "../themes";
+import { VANILLA_MODIFIERS, type RunModifiers } from "../traits";
 import type {
   CharacterId,
   DifficultyId,
   Enemy,
   EnemyKind,
+  GameMode,
   GamePhase,
   HudSnapshot,
   Obstacle,
@@ -36,6 +41,7 @@ import type {
   ThemeId,
   ThemePalette,
 } from "../types";
+import type { LoopiternRarityId } from "../mintTiers";
 
 export type GameAudioHooks = {
   onBoost?: () => void;
@@ -44,6 +50,8 @@ export type GameAudioHooks = {
   onEnemyAppear?: () => void;
   onGameOver?: () => void;
   onNearMiss?: () => void;
+  onFreeze?: () => void;
+  onTsunami?: () => void;
 };
 
 export type GameOptions = {
@@ -54,6 +62,18 @@ export type GameOptions = {
   audio?: GameAudioHooks;
   /** When false, R / Space / boost will not restart after death (P2E re-entry). */
   keyboardRestart?: boolean;
+  /** Default = vanilla PLAYER. P2M must pass VANILLA_MODIFIERS. */
+  modifiers?: RunModifiers;
+  /** Defense in depth: non-normal modes ignore modifiers. */
+  mode?: GameMode;
+  /** LOOPITERN runner art in Normal when a token is equipped. */
+  equippedRarity?: LoopiternRarityId | null;
+  /**
+   * Equipped token id. With equippedRarity it derives the DNA palette for
+   * the climb rig (colors + mark only — gameplay traits stay rarity-only).
+   * DNA is never persisted; it is re-derived from tokenId + rarity.
+   */
+  equippedTokenId?: number | null;
 };
 
 type PlayerState = {
@@ -87,9 +107,16 @@ export class Game {
   private nearMissCount = 0;
   private hitsTaken = 0;
   private keyboardRestart = true;
+  private modifiers: RunModifiers = VANILLA_MODIFIERS;
+  private runMode: GameMode = "normal";
+  private equippedRarity: LoopiternRarityId | null = null;
+  private equippedTokenId: number | null = null;
 
   private phase: GamePhase = "playing";
   private shields: number = PLAYER.maxShields;
+  private freezeCharges = 0;
+  private freezeT = 0;
+  private tsunamiCharges = 0;
   private time = 0;
   private cameraY = 0;
   private dangerY = 0;
@@ -154,6 +181,15 @@ export class Game {
     this.onHud = options.onHud;
     this.audio = options.audio;
     this.keyboardRestart = options.keyboardRestart !== false;
+    this.runMode = options.mode ?? "normal";
+    this.modifiers =
+      this.runMode === "normal"
+        ? (options.modifiers ?? VANILLA_MODIFIERS)
+        : VANILLA_MODIFIERS;
+    this.equippedRarity =
+      this.runMode === "normal" ? (options.equippedRarity ?? null) : null;
+    this.equippedTokenId =
+      this.runMode === "normal" ? (options.equippedTokenId ?? null) : null;
     this.reset();
   }
 
@@ -222,7 +258,10 @@ export class Game {
   private reset() {
     const diff = DIFFICULTIES[this.difficultyId];
     this.phase = "playing";
-    this.shields = PLAYER.maxShields;
+    this.shields = this.modifiers.maxShields;
+    this.freezeCharges = this.modifiers.freezeCharges;
+    this.freezeT = 0;
+    this.tsunamiCharges = this.modifiers.tsunamiCharges;
     this.time = 0;
     this.shake = 0;
     this.hitFlash = 0;
@@ -312,6 +351,8 @@ export class Game {
       }
       this.input.consumeRestart();
       this.input.consumeBoost();
+      this.input.consumeFreeze();
+      this.input.consumeTsunami();
       this.updateParticles(dt);
       this.shake = Math.max(0, this.shake - dt * 8);
       this.hitFlash = Math.max(0, this.hitFlash - dt);
@@ -350,16 +391,39 @@ export class Game {
       );
     }
 
+    if (
+      this.input.consumeFreeze() &&
+      this.freezeCharges > 0 &&
+      this.freezeT <= 0 &&
+      this.modifiers.freezeDuration > 0
+    ) {
+      this.freezeCharges -= 1;
+      this.freezeT = this.modifiers.freezeDuration;
+      this.bannerText = "FREEZE";
+      this.alertBanner = 1.4;
+      this.audio?.onFreeze?.();
+    }
+
+    if (this.input.consumeTsunami() && this.tsunamiCharges > 0) {
+      this.tsunamiCharges -= 1;
+      this.triggerTsunami();
+    }
+
+    this.freezeT = Math.max(0, this.freezeT - dt);
+    const frozen = this.freezeT > 0;
+
     const axis = this.input.axis();
+    const accelX = PLAYER.accelX * this.modifiers.speedMul;
+    const maxSpeedX = PLAYER.maxSpeedX * this.modifiers.speedMul;
     if (axis !== 0) {
-      this.player.vx += axis * PLAYER.accelX * dt;
+      this.player.vx += axis * accelX * dt;
       this.player.facing = axis < 0 ? -1 : 1;
     } else {
       const fr = PLAYER.frictionX * dt;
       if (Math.abs(this.player.vx) <= fr) this.player.vx = 0;
       else this.player.vx -= Math.sign(this.player.vx) * fr;
     }
-    this.player.vx = clamp(this.player.vx, -PLAYER.maxSpeedX, PLAYER.maxSpeedX);
+    this.player.vx = clamp(this.player.vx, -maxSpeedX, maxSpeedX);
 
     // Pull schedule: 28s → ×1, 65s → ×2, 110s → ×3, then pulse
     const progress = sinkProgress(this.time);
@@ -385,6 +449,7 @@ export class Game {
     // Undertow pulls until the hot zone; the rise itself can still finish the catch
     const proxNow = this.computeDangerProximity();
     const sinkEngaged =
+      !frozen &&
       this.sinkStage > 0 &&
       this.sinkReliefT <= 0 &&
       proxNow < SINK.maxProximity;
@@ -408,17 +473,22 @@ export class Game {
     const dangerBonus = sinkEngaged
       ? this.sinkStage * SINK.dangerBonusPerStage[this.difficultyId]
       : 0;
-    const dangerSpeed =
-      diff.dangerBaseSpeed + this.time * diff.dangerAccel + dangerBonus;
-    this.dangerY += dangerSpeed * dt;
+    if (!frozen) {
+      const dangerSpeed =
+        diff.dangerBaseSpeed + this.time * diff.dangerAccel + dangerBonus;
+      this.dangerY += dangerSpeed * dt;
 
-    const maxGap = Math.max(
-      SINK.minGap,
-      DANGER.maxGap - this.sinkStage * SINK.gapShrinkPerStage,
-    );
-    const extraGap = this.player.y - this.dangerY - maxGap;
-    if (this.dangerReliefT <= 0 && extraGap > 0) {
-      this.dangerY += Math.min(extraGap, DANGER.catchUpSpeed * dt);
+      const maxGap = Math.max(
+        SINK.minGap,
+        DANGER.maxGap - this.sinkStage * SINK.gapShrinkPerStage,
+      );
+      const extraGap = this.player.y - this.dangerY - maxGap;
+      if (this.dangerReliefT <= 0 && extraGap > 0) {
+        this.dangerY += Math.min(extraGap, DANGER.catchUpSpeed * dt);
+      }
+    } else {
+      this.nextEnemyAt += dt;
+      this.nextFallAt += dt;
     }
 
     // New pull stage: a short on-screen breath, then the hunt resumes
@@ -432,11 +502,15 @@ export class Game {
 
     this.ensureObstacles();
     this.ensurePickups();
-    this.spawnEnemies();
-    this.spawnFallingHazards();
+    if (!frozen) {
+      this.spawnEnemies();
+      this.spawnFallingHazards();
+    }
     this.updateObstacles(dt, diff.obstacleSpeedMul);
-    this.updateEnemies(dt);
-    this.updateProjectiles(dt);
+    if (!frozen) {
+      this.updateEnemies(dt);
+      this.updateProjectiles(dt);
+    }
     this.updatePickups(dt);
     this.resolveObstacleHits();
     this.resolveEnemyHits();
@@ -1069,7 +1143,7 @@ export class Game {
       };
       if (!aabb(pr, rect)) continue;
       this.pickups.splice(i, 1);
-      if (this.shields < PLAYER.maxShields) {
+      if (this.shields < this.modifiers.maxShields) {
         this.shields += 1;
         this.collectFlash = 0.35;
         this.audio?.onShieldPickup?.();
@@ -1130,6 +1204,34 @@ export class Game {
         this.theme.accent,
       );
     }
+  }
+
+  /** Legendary one-shot: clear shots, shove the rise using existing hitPushback. */
+  private triggerTsunami() {
+    const green = "#00C805";
+    for (const p of this.projectiles) {
+      this.burstParticles(p.x + p.w / 2, p.y + p.h / 2, 8, green);
+      this.burstParticles(p.x + p.w / 2, p.y + p.h / 2, 5, "#ffffff");
+    }
+    this.projectiles = [];
+    this.dangerY = this.player.y - DANGER.hitPushback;
+    this.dangerReliefT = DANGER.reliefTime;
+    this.shake = Math.max(this.shake, 0.75);
+    this.bannerText = "TSUNAMI";
+    this.alertBanner = 1.5;
+    this.burstParticles(
+      this.player.x + PLAYER.width / 2,
+      this.dangerY + 24,
+      28,
+      green,
+    );
+    this.burstParticles(
+      this.player.x + PLAYER.width / 2,
+      this.player.y - 10,
+      18,
+      this.theme.dangerGlow,
+    );
+    this.audio?.onTsunami?.();
   }
 
   /** Close pass by an obstacle / enemy / projectile without colliding. */
@@ -1214,7 +1316,7 @@ export class Game {
     this.onHud?.({
       phase: this.phase,
       shields: this.shields,
-      maxShields: PLAYER.maxShields,
+      maxShields: this.modifiers.maxShields,
       timeSurvived: this.time,
       height: Math.max(0, this.player.y),
       themeName: this.theme.name,
@@ -1226,6 +1328,12 @@ export class Game {
       sinkStage: this.sinkStage,
       nearMisses: this.nearMissCount,
       hitsTaken: this.hitsTaken,
+      freezeReady:
+        this.freezeCharges > 0 &&
+        this.freezeT <= 0 &&
+        this.modifiers.freezeDuration > 0,
+      freezeActive: this.freezeT > 0,
+      tsunamiReady: this.tsunamiCharges > 0,
     });
   }
 
@@ -1282,6 +1390,7 @@ export class Game {
     this.drawParticles();
     this.drawVignette();
     this.drawThreatOverlay();
+    this.drawFreezeOverlay();
     this.drawAlertBanner();
 
     if (this.hitFlash > 0) {
@@ -1934,15 +2043,49 @@ export class Game {
 
     ctx.save();
     ctx.translate(p.x + PLAYER.width / 2, sy);
-    drawCharacter(ctx, {
-      look: getCharacter(this.characterId),
-      facing: p.facing,
-      bob: p.bob,
-      vxNorm: clamp(p.vx / PLAYER.maxSpeedX, -1, 1),
-      boosting: p.boostT > 0,
-      accent: this.theme.accent,
-    });
+    if (this.equippedRarity != null) {
+      drawLoopitern(ctx, {
+        rarity: this.equippedRarity,
+        facing: p.facing,
+        bob: p.bob,
+        vxNorm: clamp(p.vx / (PLAYER.maxSpeedX * this.modifiers.speedMul), -1, 1),
+        boosting: p.boostT > 0,
+        palette: this.equippedPalette(),
+      });
+    } else {
+      drawCharacter(ctx, {
+        look: getCharacter(this.characterId),
+        facing: p.facing,
+        bob: p.bob,
+        vxNorm: clamp(p.vx / (PLAYER.maxSpeedX * this.modifiers.speedMul), -1, 1),
+        boosting: p.boostT > 0,
+        accent: this.theme.accent,
+      });
+    }
     ctx.restore();
+  }
+
+  /**
+   * DNA palette for the equipped token (visual colors + torso mark only).
+   * Falls back to the rarity's default look when no token id is known.
+   */
+  private equippedPalette() {
+    if (
+      this.equippedRarity == null ||
+      this.equippedTokenId == null ||
+      !Number.isInteger(this.equippedTokenId) ||
+      this.equippedTokenId < 1 ||
+      this.equippedTokenId > 10_000
+    ) {
+      return undefined;
+    }
+    try {
+      return loopiternRigPalette(
+        dnaFromTokenId(this.equippedTokenId, this.equippedRarity),
+      );
+    } catch {
+      return undefined;
+    }
   }
 
   private drawDanger() {
@@ -2133,6 +2276,17 @@ export class Game {
           ? `rgba(100, 180, 255, ${a})`
           : `rgba(255, 60, 20, ${a})`;
     ctx.fillRect(0, this.height * 0.55, this.width, this.height * 0.45);
+  }
+
+  private drawFreezeOverlay() {
+    if (this.freezeT <= 0) return;
+    const ctx = this.ctx;
+    const pulse = 0.1 + Math.sin(this.time * 8) * 0.03;
+    ctx.fillStyle = `rgba(140, 230, 255, ${pulse})`;
+    ctx.fillRect(0, 0, this.width, this.height);
+    ctx.fillStyle = "rgba(180, 240, 255, 0.16)";
+    ctx.fillRect(0, 0, this.width, 10);
+    ctx.fillRect(0, this.height - 10, this.width, 10);
   }
 
   private drawAlertBanner() {

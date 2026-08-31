@@ -9,7 +9,6 @@ import {
 } from "@/game/constants";
 import { audio } from "@/game/audio/AudioManager";
 import { getTheme } from "@/game/themes";
-import { computePerfectRun } from "@/game/score";
 import type { KeyboardInput } from "@/game/input/KeyboardInput";
 import { DEFAULT_CHARACTER } from "@/game/characters";
 import type {
@@ -19,14 +18,18 @@ import type {
   HudSnapshot,
   ThemeId,
 } from "@/game/types";
-import { vaultIsDeployed } from "@/web3/config";
+import { runModifiersForMode } from "@/game/traits";
 import { useWalletSession } from "@/web3/hooks/useWalletSession";
-import { P2EEntryConfirm } from "@/components/web3/P2EEntryConfirm";
-import { useOnchainWeekTheme } from "@/web3/hooks/useOnchainWeekTheme";
 import { usePlayerRegistry } from "@/web3/hooks/usePlayerRegistry";
 import {
+  getEquippedLoopitern,
+  setEquippedLoopitern,
+  type EquippedLoopitern,
+} from "@/web3/loopiterns/equip";
+import { useLoopiternsInventory } from "@/web3/loopiterns/useLoopiternsInventory";
+import {
+  recordGuestNormalBest,
   recordNormalBest,
-  recordP2ERun,
   resolveCharacterId,
   setGuestCharacterId,
   setPlayerCharacter,
@@ -40,7 +43,8 @@ import { useCoarsePointer } from "@/game/input/useCoarsePointer";
 
 type Screen = "menu" | "playing";
 
-const P2E_DIFFICULTY: DifficultyId = "medium";
+/** P2M mint runs use a shared Medium climb so time gates stay fair. */
+const P2M_DIFFICULTY: DifficultyId = "medium";
 
 const INITIAL_HUD: HudSnapshot = {
   phase: "playing",
@@ -57,12 +61,21 @@ const INITIAL_HUD: HudSnapshot = {
   sinkStage: 0,
   nearMisses: 0,
   hitsTaken: 0,
+  freezeReady: false,
+  freezeActive: false,
+  tsunamiReady: false,
 };
 
 export default function GameApp() {
-  const { address, onBase, restoring } = useWalletSession();
+  const { address } = useWalletSession();
   const { refresh } = usePlayerRegistry();
-  const p2eWorld = useOnchainWeekTheme();
+  const {
+    tokens,
+    loading: inventoryLoading,
+    onRobinhood,
+    configured,
+    refetch: refetchInventory,
+  } = useLoopiternsInventory();
   const coarsePointer = useCoarsePointer();
   const [screen, setScreen] = useState<Screen>("menu");
   const [mode, setMode] = useState<GameMode>("normal");
@@ -71,20 +84,15 @@ export default function GameApp() {
     useState<DifficultyId>(DEFAULT_DIFFICULTY);
   const [characterId, setCharacterId] =
     useState<CharacterId>(DEFAULT_CHARACTER);
-  const [p2eRunThemeId, setP2eRunThemeId] = useState<ThemeId | null>(null);
+  const [equipped, setEquipped] = useState<EquippedLoopitern | null>(null);
   const [runKey, setRunKey] = useState(0);
   const [hud, setHud] = useState<HudSnapshot>(INITIAL_HUD);
   const [restartToken, setRestartToken] = useState(0);
   const [paused, setPaused] = useState(false);
-  const [entryOpen, setEntryOpen] = useState(false);
   const [newBest, setNewBest] = useState(false);
   const [previousBest, setPreviousBest] = useState(0);
   const inputRef = useRef<KeyboardInput | null>(null);
   const recordedRef = useRef(false);
-
-  const runThemeId: ThemeId | null =
-    mode === "p2e" ? (p2eRunThemeId ?? p2eWorld.themeId) : themeId;
-  const runDifficultyId = mode === "p2e" ? P2E_DIFFICULTY : difficultyId;
 
   const onHud = useCallback((next: HudSnapshot) => {
     setHud((prev) => {
@@ -95,8 +103,8 @@ export default function GameApp() {
   }, []);
 
   useEffect(() => {
-    if (runThemeId) audio.setTheme(runThemeId);
-  }, [runThemeId]);
+    audio.setTheme(themeId);
+  }, [themeId]);
 
   useEffect(() => {
     if (screen === "menu") audio.playBed("menu");
@@ -120,6 +128,36 @@ export default function GameApp() {
     setCharacterId(resolveCharacterId(address));
   }, [address]);
 
+  useEffect(() => {
+    if (screen !== "menu") return;
+    void refetchInventory();
+  }, [screen, refetchInventory]);
+
+  useEffect(() => {
+    if (!address) {
+      setEquipped(null);
+      return;
+    }
+    setEquipped(getEquippedLoopitern(address));
+  }, [address]);
+
+  useEffect(() => {
+    if (!address || !onRobinhood || !configured || inventoryLoading) return;
+    if (!equipped) return;
+    const owned = tokens.some((t) => t.tokenId === equipped.tokenId);
+    if (!owned) {
+      setEquipped(null);
+      setEquippedLoopitern(address, null);
+    }
+  }, [
+    address,
+    configured,
+    equipped,
+    inventoryLoading,
+    onRobinhood,
+    tokens,
+  ]);
+
   const selectCharacter = useCallback(
     (id: CharacterId) => {
       setCharacterId(id);
@@ -129,60 +167,55 @@ export default function GameApp() {
     [address],
   );
 
+  const selectEquip = useCallback(
+    (token: EquippedLoopitern | null) => {
+      setEquipped(token);
+      if (address) setEquippedLoopitern(address, token);
+    },
+    [address],
+  );
+
   const launchRun = useCallback(() => {
-    const themeKey = mode === "p2e" ? p2eWorld.themeId : themeId;
-    if (!themeKey) return;
-    if (mode === "p2e") setP2eRunThemeId(themeKey);
-    const theme = getTheme(themeKey);
+    if (mode === "p2e") return;
+    const theme = getTheme(themeId);
+    const rarity = mode === "normal" ? equipped?.rarity ?? null : null;
+    const mods = runModifiersForMode(mode, rarity);
     recordedRef.current = false;
     setNewBest(false);
     setPreviousBest(0);
     setHud({
       ...INITIAL_HUD,
+      shields: mods.maxShields,
+      maxShields: mods.maxShields,
       themeName: theme.name,
-      dangerLabel: THEME_META[themeKey].dangerLabel,
+      dangerLabel: THEME_META[themeId].dangerLabel,
+      freezeReady: mods.freezeCharges > 0 && mods.freezeDuration > 0,
+      freezeActive: false,
+      tsunamiReady: mods.tsunamiCharges > 0,
     });
     setRestartToken(0);
     setPaused(false);
     setRunKey((k) => k + 1);
     setScreen("playing");
-  }, [mode, p2eWorld.themeId, themeId]);
+  }, [equipped, mode, themeId]);
 
   const startRun = useCallback(() => {
-    if (!onBase) return;
-    if (mode === "p2e") {
-      if (!p2eWorld.playable) return;
-      setEntryOpen(true);
-      return;
-    }
+    if (mode === "p2e") return;
     launchRun();
-  }, [launchRun, mode, onBase, p2eWorld.playable]);
+  }, [launchRun, mode]);
 
   const restart = useCallback(() => {
     audio.sfx("click");
-    if (!onBase) {
-      setPaused(false);
-      setEntryOpen(false);
-      setScreen("menu");
-      return;
-    }
-    if (mode === "p2e") {
-      if (!p2eWorld.playable) return;
-      setEntryOpen(true);
-      return;
-    }
     recordedRef.current = false;
     setNewBest(false);
     setPaused(false);
     inputRef.current?.requestRestart();
     setRestartToken((n) => n + 1);
-  }, [mode, onBase, p2eWorld.playable]);
+  }, []);
 
   const backToMenu = useCallback(() => {
     audio.sfx("click");
     setPaused(false);
-    setEntryOpen(false);
-    setP2eRunThemeId(null);
     setScreen("menu");
   }, []);
 
@@ -196,62 +229,23 @@ export default function GameApp() {
       return;
     }
     recordedRef.current = true;
-    if (mode === "normal") {
-      if (address) {
-        const result = recordNormalBest(
-          address,
-          runDifficultyId,
-          hud.timeSurvived,
-        );
-        setNewBest(result.isNewBest);
-        setPreviousBest(result.previous);
-        if (result.isNewBest) audio.sfx("success");
-      } else {
-        setNewBest(false);
-        setPreviousBest(0);
-      }
-      refresh();
-      return;
-    }
-
-    setNewBest(false);
-    setPreviousBest(0);
-
-    if (!vaultIsDeployed && address) {
-      const perfect = computePerfectRun({
-        survivalSeconds: hud.timeSurvived,
-        nearMisses: hud.nearMisses,
-        hitsTaken: hud.hitsTaken,
-      });
-      recordP2ERun({
-        address,
-        at: Date.now(),
-        survivalSeconds: hud.timeSurvived,
-        multiplierHundredths: perfect.hundredths,
-      });
-    }
+    if (mode !== "normal") return;
+    const result = address
+      ? recordNormalBest(address, difficultyId, hud.timeSurvived)
+      : recordGuestNormalBest(difficultyId, hud.timeSurvived);
+    setNewBest(result.isNewBest);
+    setPreviousBest(result.previous);
+    if (result.isNewBest) audio.sfx("success");
     refresh();
   }, [
     address,
-    hud.hitsTaken,
-    hud.nearMisses,
+    difficultyId,
     hud.phase,
     hud.timeSurvived,
     mode,
     refresh,
-    runDifficultyId,
     screen,
-    vaultIsDeployed,
   ]);
-
-  useEffect(() => {
-    if (onBase || restoring) return;
-    setEntryOpen(false);
-    if (screen === "playing") {
-      setPaused(false);
-      setScreen("menu");
-    }
-  }, [onBase, restoring, screen]);
 
   useEffect(() => {
     if (screen !== "playing") return;
@@ -265,36 +259,34 @@ export default function GameApp() {
     return () => window.removeEventListener("keydown", onKey);
   }, [screen]);
 
-  if (screen === "menu" || !runThemeId) {
+  if (screen === "menu") {
     return (
-      <>
-        <StartMenu
-          mode={mode}
-          themeId={themeId}
-          difficultyId={difficultyId}
-          characterId={characterId}
-          onModeChange={setMode}
-          onThemeChange={setThemeId}
-          onDifficultyChange={setDifficultyId}
-          onCharacterChange={selectCharacter}
-          onStart={startRun}
-        />
-        {entryOpen ? (
-          <P2EEntryConfirm
-            onConfirm={() => {
-              setEntryOpen(false);
-              launchRun();
-            }}
-            onCancel={() => setEntryOpen(false)}
-          />
-        ) : null}
-      </>
+      <StartMenu
+        mode={mode}
+        themeId={themeId}
+        difficultyId={difficultyId}
+        characterId={characterId}
+        onModeChange={setMode}
+        onThemeChange={setThemeId}
+        onDifficultyChange={setDifficultyId}
+        onCharacterChange={selectCharacter}
+        onStart={startRun}
+        equipped={equipped}
+        onEquip={selectEquip}
+      />
     );
   }
 
-  const accent = getTheme(runThemeId).accent;
+  const accent = getTheme(themeId).accent;
+  const runDifficultyId = mode === "p2m" ? P2M_DIFFICULTY : difficultyId;
   const difficultyLabel =
-    mode === "p2e" ? "P2E" : DIFFICULTIES[runDifficultyId].label;
+    mode === "p2m" ? "P2M" : DIFFICULTIES[runDifficultyId].label;
+  const equippedRarity = mode === "normal" ? equipped?.rarity ?? null : null;
+  const equippedTokenId =
+    mode === "normal" && equipped !== null
+      ? Number(equipped.tokenId)
+      : null;
+  const runModifiers = runModifiersForMode(mode, equippedRarity);
 
   return (
     <div
@@ -307,15 +299,19 @@ export default function GameApp() {
         <div className="relative flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden shadow-[0_0_80px_rgba(0,0,0,0.45)]">
           <GameCanvas
             key={runKey}
-            themeId={runThemeId}
+            themeId={themeId}
             difficultyId={runDifficultyId}
             characterId={characterId}
             onHud={onHud}
             restartToken={restartToken}
             paused={paused}
             inputRef={inputRef}
-            keyboardRestart={mode !== "p2e"}
+            keyboardRestart
             disableCanvasTouch={coarsePointer}
+            modifiers={runModifiers}
+            mode={mode}
+            equippedRarity={equippedRarity}
+            equippedTokenId={equippedTokenId}
           />
           <GameHUD
             hud={hud}
@@ -338,6 +334,9 @@ export default function GameApp() {
               !paused &&
               hud.phase !== "gameover"
             }
+            freezeReady={hud.freezeReady}
+            freezeActive={hud.freezeActive}
+            tsunamiReady={hud.tsunamiReady}
           />
         </div>
 
@@ -349,16 +348,6 @@ export default function GameApp() {
           />
         </div>
       </div>
-
-      {entryOpen ? (
-        <P2EEntryConfirm
-          onConfirm={() => {
-            setEntryOpen(false);
-            launchRun();
-          }}
-          onCancel={() => setEntryOpen(false)}
-        />
-      ) : null}
     </div>
   );
 }

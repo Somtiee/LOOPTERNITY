@@ -1,9 +1,35 @@
-import type { ReactNode } from "react";
-import { ConfidentialScorePanel } from "@/components/web3/ConfidentialScorePanel";
+"use client";
+
+import { useEffect, useRef, type ReactNode } from "react";
 import { SINK } from "@/game/constants";
+import { audio } from "@/game/audio/AudioManager";
+import {
+  formatRarityGate,
+  highestRarityForSurvival,
+  nextRarityGate,
+  RARITIES,
+} from "@/game/mintTiers";
 import { formatSurvivalTime } from "@/game/score";
 import type { GameMode, HudSnapshot } from "@/game/types";
+import { ConnectWalletButton } from "@/components/web3/ConnectWalletButton";
+import { CHAIN_SWITCH_LABEL } from "@/web3/config";
+import { useWalletSession } from "@/web3/hooks/useWalletSession";
+import {
+  formatMintPriceEth,
+  useMintLoopitern,
+} from "@/web3/loopiterns";
+import { LoopiternPortrait } from "./LoopiternPortrait";
 import { MuteButton } from "./MuteButton";
+
+const MAX_LOOPITERNS_PER_WALLET = 5;
+const MINT_GREEN = "#00C805";
+const MINT_INK = "#05140a";
+/**
+ * Sample tokenIds whose generated stills ship in the repo — cycled in the
+ * mint preview so a rarity is never shown as one repeated image. Actual
+ * tokenIds are assigned at mint; every token recolors differently (J4 DNA).
+ */
+const MINT_PREVIEW_TOKEN_IDS = [1, 9, 44] as const;
 
 type GameHUDProps = {
   hud: HudSnapshot;
@@ -43,6 +69,192 @@ function HudIconBtn({
   );
 }
 
+function mintButtonLabel(
+  status: ReturnType<typeof useMintLoopitern>["status"],
+): string {
+  if (status === "confirm") return "CONFIRM IN WALLET";
+  if (status === "pending") return "PENDING…";
+  if (status === "success") return "MINTED";
+  if (status === "error") return "RETRY MINT";
+  return "MINT LOOPITERN";
+}
+
+function P2mMintBlock({ timeSurvived }: { timeSurvived: number }) {
+  const { hasWallet, onRobinhood } = useWalletSession();
+  const {
+    configured,
+    loading,
+    mintPrice,
+    remainingByRarity,
+    ownedCount,
+    paused,
+    requested: unlocked,
+    resolved: willMint,
+    status,
+    errorMessage,
+    tokenId,
+    explorerTxUrl,
+    mint,
+  } = useMintLoopitern(timeSurvived);
+  const next = nextRarityGate(timeSurvived);
+  const dropped = Boolean(
+    unlocked && willMint && willMint.id !== unlocked.id,
+  );
+  const playedSuccess = useRef(false);
+
+  useEffect(() => {
+    if (status === "success" && !playedSuccess.current) {
+      playedSuccess.current = true;
+      audio.sfx("success");
+    }
+    if (status !== "success") playedSuccess.current = false;
+  }, [status]);
+
+  const busy = status === "confirm" || status === "pending";
+
+  let disableReason: string | null = null;
+  if (!configured) {
+    disableReason = "Mint contract not configured.";
+  } else if (loading) {
+    disableReason = "Checking supply…";
+  } else if (remainingByRarity === undefined) {
+    disableReason = "Could not read remaining supply.";
+  } else if (!unlocked) {
+    disableReason = `Survive ${formatRarityGate(RARITIES[0].minSeconds)} (Common) to unlock a mint.`;
+  } else if (!willMint) {
+    disableReason = "Sold out for this run.";
+  } else if (paused) {
+    disableReason = "Minting is paused.";
+  } else if (mintPrice === undefined) {
+    disableReason = "Could not read mint price.";
+  } else if (!hasWallet) {
+    disableReason = "Connect a wallet to mint.";
+  } else if (!onRobinhood) {
+    disableReason = `WRONG NETWORK · ${CHAIN_SWITCH_LABEL}`;
+  } else if (ownedCount >= MAX_LOOPITERNS_PER_WALLET) {
+    disableReason = `Max ${MAX_LOOPITERNS_PER_WALLET} LOOPITERNS per wallet.`;
+  }
+
+  const mintEnabled = disableReason === null && !busy && status !== "success";
+
+  return (
+    <div className="mt-4 rounded-xl border border-[#00C805]/40 bg-[#00C805]/10 px-3 py-3 text-left">
+      <div className="flex items-center gap-3">
+        {willMint || unlocked ? (
+          <div className="flex shrink-0 items-center gap-1.5">
+            {MINT_PREVIEW_TOKEN_IDS.map((sampleId) => (
+              <LoopiternPortrait
+                key={sampleId}
+                rarity={(willMint ?? unlocked)!.id}
+                tokenId={sampleId}
+                size="sm"
+                className={willMint ? "" : "opacity-40"}
+              />
+            ))}
+          </div>
+        ) : (
+          <LoopiternPortrait rarity={0} size="sm" className="opacity-25 grayscale" />
+        )}
+        <div className="min-w-0 flex-1">
+          {unlocked ? (
+            <p
+              className="font-[family-name:var(--font-display)] text-xs tracking-[0.16em]"
+              style={{ color: unlocked.accent }}
+            >
+              {unlocked.name.toUpperCase()}
+            </p>
+          ) : (
+            <p className="font-[family-name:var(--font-display)] text-xs tracking-[0.16em] text-white/70">
+              NO MINT YET
+            </p>
+          )}
+        </div>
+      </div>
+      <p className="mt-1.5 text-[11px] leading-relaxed text-white/55">
+        {unlocked
+          ? dropped && willMint
+            ? `Will mint ${willMint.name} (${unlocked.name} sold out, dropping to ${willMint.name}).`
+            : willMint
+              ? `Highest unlocked: ${unlocked.name} · ${formatRarityGate(unlocked.minSeconds)} · ${unlocked.supply.toLocaleString()} max at this rarity.`
+              : "Every unlocked rarity is sold out."
+          : next
+            ? `Common unlocks at ${formatRarityGate(next.minSeconds)}. Medium climb for every P2M run.`
+            : "Survive to unlock a mint."}
+      </p>
+      {mintPrice !== undefined ? (
+        <p className="mt-1 text-[10px] tabular-nums text-white/40">
+          Price {formatMintPriceEth(mintPrice)} on Robinhood Chain.
+        </p>
+      ) : null}
+      <p className="mt-1.5 text-[10px] leading-relaxed text-white/40">
+        LOOPITERNS cannot be used in P2M — equip in Normal only. Time is from
+        this client run. The chain checks price and supply, not your timer.
+      </p>
+      <div className="mt-3 flex justify-center">
+        <ConnectWalletButton size="sm" />
+      </div>
+      <button
+        type="button"
+        disabled={!mintEnabled}
+        onClick={() => {
+          if (!mintEnabled) return;
+          audio.sfx("click");
+          void mint();
+        }}
+        className={`mt-3 min-h-12 w-full rounded-xl px-4 py-3 font-[family-name:var(--font-display)] text-sm tracking-[0.18em] transition ${
+          mintEnabled
+            ? "hover:brightness-110 active:scale-[0.99]"
+            : "cursor-not-allowed opacity-45"
+        }`}
+        style={{
+          background: MINT_GREEN,
+          color: MINT_INK,
+        }}
+      >
+        {mintButtonLabel(status)}
+      </button>
+      {status === "confirm" ? (
+        <p className="mt-2 text-center text-[10px] leading-relaxed text-[#7CFF7C]">
+          Confirm in wallet…
+        </p>
+      ) : null}
+      {status === "pending" ? (
+        <p className="mt-2 text-center text-[10px] leading-relaxed text-[#7CFF7C]">
+          Mint pending on Robinhood Chain…
+        </p>
+      ) : null}
+      {status === "success" ? (
+        <p className="mt-2 text-center text-[10px] leading-relaxed text-[#7CFF7C]">
+          {tokenId !== null ? `Minted #${tokenId.toString()}` : "Minted"}
+          {explorerTxUrl ? (
+            <>
+              {" · "}
+              <a
+                href={explorerTxUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="underline decoration-[#00C805]/70 underline-offset-2 hover:text-white"
+              >
+                View tx on Blockscout
+              </a>
+            </>
+          ) : null}
+        </p>
+      ) : null}
+      {status === "error" && errorMessage ? (
+        <p className="mt-2 text-center text-[10px] leading-relaxed text-red-300/90">
+          {errorMessage}
+        </p>
+      ) : null}
+      {disableReason && status === "idle" ? (
+        <p className="mt-2 text-center text-[10px] leading-relaxed text-white/45">
+          {disableReason}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function GameHUD({
   hud,
   accent,
@@ -57,6 +269,9 @@ export function GameHUD({
   touchControls = false,
 }: GameHUDProps) {
   const showOverlay = paused && hud.phase !== "gameover";
+  const p2mUnlocked =
+    mode === "p2m" ? highestRarityForSurvival(hud.timeSurvived) : null;
+  const p2mNext = mode === "p2m" ? nextRarityGate(hud.timeSurvived) : null;
 
   return (
     <div className="pointer-events-none absolute inset-0 z-10 flex flex-col justify-between p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] sm:p-5">
@@ -86,7 +301,7 @@ export function GameHUD({
               LOOPTERNITY
             </p>
             <p className="mt-0.5 text-xs text-white/45">
-              {mode === "p2e" ? `${hud.themeName} · Weekly` : `${hud.themeName} · ${difficultyLabel}`}
+              {`${hud.themeName} · ${difficultyLabel}`}
             </p>
             {touchControls ? (
               <div className="mt-2">
@@ -128,6 +343,20 @@ export function GameHUD({
           <p className="text-[11px] uppercase tracking-[0.2em] text-white/40">
             Survived
           </p>
+          {mode === "p2m" ? (
+            <p
+              className="mt-1 text-[10px] tracking-[0.08em]"
+              style={{ color: p2mUnlocked?.accent ?? "rgba(255,255,255,0.4)" }}
+            >
+              {p2mUnlocked
+                ? p2mNext
+                  ? `${p2mUnlocked.name} · next ${p2mNext.name} ${formatRarityGate(p2mNext.minSeconds)}`
+                  : `${p2mUnlocked.name} max`
+                : p2mNext
+                  ? `Next ${p2mNext.name} ${formatRarityGate(p2mNext.minSeconds)}`
+                  : ""}
+            </p>
+          ) : null}
         </div>
       </header>
 
@@ -190,6 +419,20 @@ export function GameHUD({
           >
             {hud.boostReady ? "BOOST READY" : "BOOST…"}
           </p>
+          {hud.freezeActive ? (
+            <p className="mb-1 font-[family-name:var(--font-display)] text-[10px] tracking-[0.18em] text-[#9ee8ff]">
+              FROZEN
+            </p>
+          ) : hud.freezeReady ? (
+            <p className="mb-1 font-[family-name:var(--font-display)] text-[10px] tracking-[0.18em] text-[#9ee8ff]">
+              {touchControls ? "FREEZE READY" : "F · FREEZE"}
+            </p>
+          ) : null}
+          {hud.tsunamiReady ? (
+            <p className="mb-1 font-[family-name:var(--font-display)] text-[10px] tracking-[0.18em] text-[#00C805]">
+              {touchControls ? "TSUNAMI READY" : "T · TSUNAMI"}
+            </p>
+          ) : null}
           <p className="text-[11px] text-white/35">
             {hud.sinkStage > 0
               ? "Keep boosting or the rise takes you"
@@ -229,7 +472,7 @@ export function GameHUD({
               onClick={onRestart}
               className="mt-2 min-h-12 w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 font-[family-name:var(--font-display)] text-xs tracking-[0.2em] text-white/80 transition hover:bg-white/10"
             >
-              {mode === "p2e" ? "PAY & NEW RUN" : "NEW GAME"}
+              NEW GAME
             </button>
             <button
               type="button"
@@ -266,43 +509,33 @@ export function GameHUD({
               </p>
             ) : null}
             <p className="mt-2 text-sm text-white/55">
-              {mode === "p2e"
-                ? hud.themeName
-                : `${hud.themeName} · ${difficultyLabel}`}
+              {`${hud.themeName} · ${difficultyLabel}`}
               <br />
               Climbed {Math.floor(hud.height)}m.
             </p>
-            {mode === "p2e" ? (
-              <ConfidentialScorePanel
-                hud={hud}
-                accent={accent}
-                onRestart={onRestart}
-                onMenu={onMenu}
-              />
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={onRestart}
-                  className="mt-6 min-h-12 w-full rounded-xl px-4 py-3 font-[family-name:var(--font-display)] text-sm tracking-[0.2em] text-[#0a0608] transition hover:brightness-110"
-                  style={{
-                    background: `linear-gradient(90deg, ${accent}, #ffe08a)`,
-                  }}
-                >
-                  RUN AGAIN
-                </button>
-                <button
-                  type="button"
-                  onClick={onMenu}
-                  className="mt-2 min-h-12 w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 font-[family-name:var(--font-display)] text-xs tracking-[0.2em] text-white/80 transition hover:bg-white/10"
-                >
-                  MAIN MENU
-                </button>
-                <p className="mt-3 text-[11px] text-white/35">
-                  Press R / Enter / Space
-                </p>
-              </>
-            )}
+            {mode === "p2m" ? (
+              <P2mMintBlock timeSurvived={hud.timeSurvived} />
+            ) : null}
+            <button
+              type="button"
+              onClick={onRestart}
+              className="mt-6 min-h-12 w-full rounded-xl px-4 py-3 font-[family-name:var(--font-display)] text-sm tracking-[0.2em] text-[#0a0608] transition hover:brightness-110"
+              style={{
+                background: `linear-gradient(90deg, ${accent}, #ffe08a)`,
+              }}
+            >
+              RUN AGAIN
+            </button>
+            <button
+              type="button"
+              onClick={onMenu}
+              className="mt-2 min-h-12 w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 font-[family-name:var(--font-display)] text-xs tracking-[0.2em] text-white/80 transition hover:bg-white/10"
+            >
+              MAIN MENU
+            </button>
+            <p className="mt-3 text-[11px] text-white/35">
+              Press R / Enter / Space
+            </p>
           </div>
         </div>
       )}
