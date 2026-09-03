@@ -28,6 +28,7 @@ import {
 } from "@/web3/loopiterns/equip";
 import { useLoopiternsInventory } from "@/web3/loopiterns/useLoopiternsInventory";
 import { useLoopiternsSupply } from "@/web3/loopiterns/useLoopiternsSupply";
+import { requestRunSeed } from "@/web3/loopiterns/runSeed";
 import {
   recordGuestNormalBest,
   recordNormalBest,
@@ -98,6 +99,11 @@ export default function GameApp() {
   const [runKey, setRunKey] = useState(0);
   const [hud, setHud] = useState<HudSnapshot>(INITIAL_HUD);
   const [restartToken, setRestartToken] = useState(0);
+  // P2M run-seed attestation: the server stamps a seed at run start and
+  // the voucher route later requires real elapsed time ≥ the rarity gate.
+  // Null while fetching or if the seed route is unreachable — the run
+  // still plays, and the mint surfaces the server error if attempted.
+  const [runSeedId, setRunSeedId] = useState<string | null>(null);
   const [paused, setPaused] = useState(false);
   const [newBest, setNewBest] = useState(false);
   const [previousBest, setPreviousBest] = useState(0);
@@ -198,6 +204,14 @@ export default function GameApp() {
   const launchRun = useCallback(() => {
     if (mode === "p2e") return;
     if (mode === "p2m" && supply.soldOut) return;
+    // P2M: ask the server to stamp this run. Fire-and-forget — the game
+    // plays fine without it; minting without it fails honestly server-side.
+    if (mode === "p2m") {
+      setRunSeedId(null);
+      void requestRunSeed().then(setRunSeedId);
+    } else {
+      setRunSeedId(null);
+    }
     // P2M locks the UTC-hour theme so every mint run in the same hour
     // climbs the same world; Normal honors the picker. Locked at launch
     // so a rollover mid-run cannot flip the live world.
@@ -236,9 +250,14 @@ export default function GameApp() {
     recordedRef.current = false;
     setNewBest(false);
     setPaused(false);
+    // A restart is a NEW run — fresh seed so the clock honestly restarts.
+    if (mode === "p2m") {
+      setRunSeedId(null);
+      void requestRunSeed().then(setRunSeedId);
+    }
     inputRef.current?.requestRestart();
     setRestartToken((n) => n + 1);
-  }, []);
+  }, [mode]);
 
   const backToMenu = useCallback(() => {
     audio.sfx("click");
@@ -357,6 +376,7 @@ export default function GameApp() {
             onRestart={restart}
             onMenu={backToMenu}
             touchControls={coarsePointer}
+            runSeedId={runSeedId}
           />
           <VirtualPad
             inputRef={inputRef}

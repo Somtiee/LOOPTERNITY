@@ -43,6 +43,8 @@ type GameHUDProps = {
   onRestart: () => void;
   onMenu: () => void;
   touchControls?: boolean;
+  /** Server-issued run seed for this P2M run (voucher attestation). */
+  runSeedId?: string | null;
 };
 
 function HudIconBtn({
@@ -92,7 +94,13 @@ function formatMintRemaining(
   return `${Math.max(0, n).toLocaleString()} left`;
 }
 
-function P2mMintBlock({ timeSurvived }: { timeSurvived: number }) {
+function P2mMintBlock({
+  timeSurvived,
+  runSeedId,
+}: {
+  timeSurvived: number;
+  runSeedId: string | null;
+}) {
   const { hasWallet, onRobinhood } = useWalletSession();
   const {
     configured,
@@ -109,7 +117,7 @@ function P2mMintBlock({ timeSurvived }: { timeSurvived: number }) {
     explorerTxUrl,
     mint,
     refetchInventory,
-  } = useMintLoopitern(timeSurvived);
+  } = useMintLoopitern(timeSurvived, runSeedId);
   const next = nextRarityGate(timeSurvived);
   const dropped = Boolean(
     unlocked && willMint && willMint.id !== unlocked.id,
@@ -153,6 +161,10 @@ function P2mMintBlock({ timeSurvived }: { timeSurvived: number }) {
     disableReason = `Wrong network — tap the button above to switch to ${CHAIN_SWITCH_LABEL}.`;
   } else if (ownedCount >= MAX_LOOPITERNS_PER_WALLET) {
     disableReason = "MINT LIMIT REACHED — 5/5 LOOPITERNS";
+  } else if (!runSeedId) {
+    // Seed fetch failed at run start (offline / 503). Restarting the run
+    // gets a fresh seed — better than a dead button with no explanation.
+    disableReason = "Run not attested — hit NEW for a fresh run, then mint.";
   }
 
   const mintEnabled = disableReason === null && !busy && status !== "success";
@@ -215,8 +227,9 @@ function P2mMintBlock({ timeSurvived }: { timeSurvived: number }) {
         </p>
       ) : null}
       <p className="mt-1.5 text-[10px] leading-relaxed text-white/40">
-        LOOPITERNS cannot be used in P2M — equip in Normal only. Time is from
-        this client run. The chain checks price and supply, not your timer.
+        LOOPITERNS cannot be used in P2M — equip in Normal only. Vouchers are
+        attested server-side: the run clock starts on the server, so playing
+        is the only way in. Chain checks price, supply, and the 5-cap.
       </p>
       <div className="mt-3 flex justify-center">
         <ConnectWalletButton size="sm" />
@@ -311,6 +324,7 @@ export function GameHUD({
   onRestart,
   onMenu,
   touchControls = false,
+  runSeedId = null,
 }: GameHUDProps) {
   const showOverlay = paused && hud.phase !== "gameover";
   const p2mUnlocked =
@@ -558,7 +572,10 @@ export function GameHUD({
               Climbed {Math.floor(hud.height)}m.
             </p>
             {mode === "p2m" ? (
-              <P2mMintBlock timeSurvived={hud.timeSurvived} />
+              <P2mMintBlock
+                timeSurvived={hud.timeSurvived}
+                runSeedId={runSeedId}
+              />
             ) : null}
             <button
               type="button"

@@ -60,11 +60,12 @@ async function fetchVoucher(
   address: Address,
   rarity: number,
   timeSurvived: number,
+  seedId: string | null,
 ): Promise<Voucher> {
   const res = await fetch("/api/loopitern/voucher", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ address, rarity, timeSurvived }),
+    body: JSON.stringify({ address, rarity, timeSurvived, seedId }),
   });
   const data = (await res.json().catch(() => null)) as
     | (Voucher & { error?: string })
@@ -85,12 +86,17 @@ async function fetchVoucher(
 }
 
 /**
- * P2M mint (v2, voucher-gated). The client asks this server for a signed
- * voucher; the chain checks the signature, price, max 5, 10k cap, and
- * per-rarity remaining. No "verified" badge — the voucher only proves the
- * server saw a run that reached the rarity gate.
+ * P2M mint (v2, voucher-gated + run-seed attested). The client asks this
+ * server for a signed voucher; the server checks the rarity gate AND that
+ * real wall-clock time passed since the run seed was issued; the chain
+ * checks the signature, price, max 5, 10k cap, and per-rarity remaining.
+ * No "verified" badge — the voucher only proves the server saw a run that
+ * reached the rarity gate.
  */
-export function useMintLoopitern(timeSurvived: number) {
+export function useMintLoopitern(
+  timeSurvived: number,
+  runSeedId: string | null,
+) {
   const { address: wallet, onRobinhood, hasWallet, chainId } =
     useWalletSession();
   const contract = getLoopiternsAddress();
@@ -259,12 +265,23 @@ export function useMintLoopitern(timeSurvived: number) {
     if (!hasWallet || !onRobinhood) return;
     if (!wallet) return;
     if (ownedCount >= MAX_PER_WALLET || paused) return;
+    if (!runSeedId) {
+      setLocalError(
+        "No run seed — restart the run, then mint (playing is the only way).",
+      );
+      return;
+    }
     setLocalError(null);
     setTokenId(null);
     reset();
     try {
-      // 1) Server voucher — the rarity gate check lives there now.
-      const voucher = await fetchVoucher(wallet, resolved.id, timeSurvived);
+      // 1) Server voucher — rarity gate + run-seed elapsed check live there.
+      const voucher = await fetchVoucher(
+        wallet,
+        resolved.id,
+        timeSurvived,
+        runSeedId,
+      );
       // 2) On-chain mint with the signed voucher.
       await writeContractAsync({
         address: contract,
@@ -296,6 +313,7 @@ export function useMintLoopitern(timeSurvived: number) {
     paused,
     reset,
     resolved,
+    runSeedId,
     timeSurvived,
     wallet,
     writeContractAsync,

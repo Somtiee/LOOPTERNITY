@@ -2,15 +2,20 @@
  * LOOPITERNS mint voucher signer (v2 voucher-gated mint).
  *
  * POST /api/loopitern/voucher
- *   body: { address, rarity, timeSurvived }
+ *   body: { address, rarity, timeSurvived, seedId }
  *   →     { deadline, nonce, signature }
  *
  * The client survival time is spoofable, so the chain now requires a
  * server-signed voucher. This route checks the claimed survival time
- * against the rarity gates (45/60/90/120/180s) — the same gates the
- * client honors — and signs an EIP-712 voucher bound to (minter, rarity,
- * deadline, nonce, chainId, contract). The contract's ecrecover check plus
- * the single-use nonce makes the voucher unforgeable and unreplayable.
+ * against the rarity gates (30/60/90/120/150s) — the same gates the
+ * client honors — AND requires a run seed from POST
+ * /api/loopitern/run-seed: the seed is created at run start, and real
+ * wall-clock time (server-measured) must have passed since, at least
+ * minSeconds for the rarity being minted. Console spoofing of
+ * timeSurvived alone buys nothing. The voucher itself is EIP-712 bound
+ * to (minter, rarity, deadline, nonce, chainId, contract); the
+ * contract's ecrecover check plus the single-use nonce makes it
+ * unforgeable and unreplayable.
  *
  * Honesty rules:
  *   - contract not configured (NEXT_PUBLIC_LOOPITERNS_ADDRESS empty/zero)
@@ -30,7 +35,8 @@ import { privateKeyToAddress, signTypedData } from "viem/accounts";
 import { NextResponse } from "next/server";
 import { getLoopiternsAddress } from "@/web3/loopiterns/address";
 import { ROBINHOOD_CHAIN_ID } from "@/web3/config";
-import { highestRarityForSurvival, isLoopiternRarityId } from "@/game/mintTiers";
+import { highestRarityForSurvival, isLoopiternRarityId, rarityById } from "@/game/mintTiers";
+import { validateRunSeed } from "@/server/loopiterns/runSeedStore";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -102,19 +108,34 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "bad timeSurvived" }, { status: 400 });
   }
 
-  // Server-side gate: only sign for a rarity the run actually reached.
-  // Same 45/60/90/120/180s gates the client honors — a spoofed client
-  // timer buys nothing here.
+  // Server-side gate 1: only sign for a rarity the run CLAIMS to have
+  // reached (30/60/90/120/150s gates — same as the client honors).
   const unlocked = highestRarityForSurvival(timeSurvived);
   if (!unlocked || rarity > unlocked.id) {
     return NextResponse.json(
       {
         error: unlocked
           ? `rarity ${rarity} not unlocked — this run reached ${unlocked.name}`
-          : "survive 45s (Common) to unlock a mint",
+          : "survive 30s (Common) to unlock a mint",
       },
       { status: 403 },
     );
+  }
+
+  // Server-side gate 2 (the real one): the run seed. The seed was issued
+  // when the run started; real wall-clock time must have passed since —
+  // at least minSeconds for the rarity being minted. A console script
+  // posting timeSurvived: 9999 gets "too fast" here unless it actually
+  // waited the full gate. Gate on the MINTED rarity (what we're about to
+  // sign), not just the claimed one — a 155s elapsed seed can claim
+  // Uncommon, but a 35s seed can never mint an Uncommon voucher.
+  const mintedRarity = rarityById(rarity);
+  if (!mintedRarity) {
+    return NextResponse.json({ error: "bad rarity" }, { status: 400 });
+  }
+  const seedError = validateRunSeed(rec.seedId, mintedRarity.minSeconds);
+  if (seedError) {
+    return NextResponse.json({ error: seedError }, { status: 403 });
   }
 
   // Everything below is server-generated; the caller controls none of it.

@@ -8,7 +8,7 @@ Everything here reflects the current tree and chain state — see
 
 | Item | Value |
 | --- | --- |
-| Contract | `0x7016CfF42264C8D499a32bBe2b5A039bfd0Ed19f` |
+| Contract | `0x0914DcfdE10e5Df2aA1D8C850213712F64852637` |
 | Owner / treasury | `0xED638d2de9E7b6E8D06514A161bb2cEFf28bfCDd` |
 | Mint price | 0.0002 ETH (`mintPrice()`) |
 | Supply | 10,000 hard cap; rarity caps 5000 / 2500 / 1500 / 800 / 200 |
@@ -18,7 +18,7 @@ Everything here reflects the current tree and chain state — see
 Quick live check:
 
 ```bash
-cast call 0x7016CfF42264C8D499a32bBe2b5A039bfd0Ed19f "totalSupply()" \
+cast call 0x0914DcfdE10e5Df2aA1D8C850213712F64852637 "totalSupply()" \
   --rpc-url https://rpc.mainnet.chain.robinhood.com
 ```
 
@@ -35,7 +35,7 @@ cast call 0x7016CfF42264C8D499a32bBe2b5A039bfd0Ed19f "totalSupply()" \
    treasury key:
 
    ```bash
-   cast send 0x7016CfF42264C8D499a32bBe2b5A039bfd0Ed19f \
+   cast send 0x0914DcfdE10e5Df2aA1D8C850213712F64852637 \
      "setBaseURI(string)" "https://<PRODUCTION-DOMAIN>/api/loopitern/token/" \
      --rpc-url https://rpc.mainnet.chain.robinhood.com \
      --private-key <TREASURY_PRIVATE_KEY>
@@ -55,8 +55,11 @@ cast call 0x7016CfF42264C8D499a32bBe2b5A039bfd0Ed19f "totalSupply()" \
 From `docs/vercel-env.txt` — set in the Vercel project (Production +
 Preview):
 
-- `NEXT_PUBLIC_LOOPITERNS_ADDRESS=0x7016CfF42264C8D499a32bBe2b5A039bfd0Ed19f`
+- `NEXT_PUBLIC_LOOPITERNS_ADDRESS=0x0914DcfdE10e5Df2aA1D8C850213712F64852637`
 - `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` — Reown project id (mobile wallets)
+- `VOUCHER_SIGNER_PRIVATE_KEY` — server-only key that signs mint vouchers
+  (address must equal on-chain `mintSigner`, currently
+  `0x486eCE21831ffa07661EF745746e2ec47a486222`; lives in `contracts/.env`)
 - `NEXT_PUBLIC_RPC_URL` — optional override
 - `NEXT_PUBLIC_LOOPITERNS_MINT_PRICE_WEI` — optional fallback
 - `KV_REST_API_URL` / `KV_REST_API_TOKEN` — Vercel KV for wallet-synced
@@ -89,9 +92,13 @@ requests, pause first, fix, unpause.
 - **`raritiesOf()` is source-only.** It was added after deploy and is not in
   the live bytecode. The app reads rarities through Multicall3 instead.
   Redeclaring would orphan the minted tokens — don't.
-- **Client survival time is untrusted.** The contract stores
-  `claimedSeconds` but never verifies it. The gates (45s…180s) are UX, not
-  proof. On-chain truth = price paid, wallet cap, supply.
+- **Client survival time is untrusted — but the voucher gate is server-side.**
+  The v2 contract has no `claimedSeconds` at all; minting requires a signed
+  voucher. The server checks the rarity gate (30/60/90/120/150s) AND a
+  run-seed attestation: a seed is stamped at run start and a voucher is only
+  signed after real wall-clock time ≥ the gate passed since. On-chain truth =
+  signature, price paid, wallet cap, supply. (v1's `claimedSeconds` was UX
+  only; v1 is withdrawn, paused, retired.)
 - **`contracts/foundry.toml` still carries Inco-era remappings and a
   `[profile.deploy]`** from the removed Base vault. Harmless — the default
   profile compiles and tests the active contract. Ignore them.

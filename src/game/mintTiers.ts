@@ -1,7 +1,10 @@
 /**
  * LOOPITERNS rarity gates for P2M UX / eligibility preview.
  *
- * Client `timeSurvived` is spoofable. This module does not prove a run.
+ * Client `timeSurvived` is spoofable on its own, so the voucher route
+ * now requires a server-issued run seed: a seed is created when the run
+ * starts, and a voucher is only signed if real wall-clock time passed
+ * between seed issue and the claim (see /api/loopitern/run-seed).
  * On-chain mint still only enforces price, max 5 per wallet, 10k cap,
  * and remaining supply per rarity.
  */
@@ -21,7 +24,7 @@ export const RARITIES: readonly LoopiternRarity[] = [
   {
     id: 0,
     name: "Common",
-    minSeconds: 45,
+    minSeconds: 30,
     supply: 5_000,
     accent: "#3D9A4A",
   },
@@ -49,7 +52,7 @@ export const RARITIES: readonly LoopiternRarity[] = [
   {
     id: 4,
     name: "Legendary",
-    minSeconds: 180,
+    minSeconds: 150,
     supply: 200,
     accent: "#C8FF9A",
   },
