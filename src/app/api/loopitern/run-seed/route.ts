@@ -52,5 +52,12 @@ export async function POST(req: Request) {
   }
 
   const session = createRunSession(address);
+  if (!session) {
+    // No signing key configured — never hand out an unsigned session.
+    return NextResponse.json(
+      { error: "Run sessions are not configured (VOUCHER_SIGNER_PRIVATE_KEY missing)" },
+      { status: 503 },
+    );
+  }
   return NextResponse.json(session, { status: 201 });
 }

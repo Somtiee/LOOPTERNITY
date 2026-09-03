@@ -152,6 +152,66 @@ console.log("A. console bypass: fresh session + timeSurvived 9999 + garbage log"
   console.log(`  → ${status} ${String(json.error)} ✓ (wall-clock gate fires first)`);
 }
 
+// --- A2. tampered/unsigned session tokens -----------------------------------
+
+console.log("\nA2. tampered session tokens:");
+{
+  const session = await requestSession();
+
+  // Flip a character mid-signature — the HMAC must fail. (The token's last
+  // char carries ignored base64 padding bits, so flip one that counts.)
+  const dotIdx = session.sessionId.indexOf(".");
+  const chars = session.sessionId.split("");
+  const midSig = dotIdx + 10;
+  chars[midSig] = chars[midSig] === "A" ? "B" : "A";
+  const tampered = chars.join("");
+  const r1 = await postJson("/api/loopitern/voucher", {
+    address: MINTER,
+    rarity: 0,
+    timeSurvived: 60,
+    sessionId: tampered,
+    inputLog: { v: 1, ticks: 10, width: 720, height: 720, axis: [], boost: [], freeze: [], tsunami: [] },
+  });
+  assert(r1.status === 403, `tampered token expected 403, got ${r1.status}`);
+  assert(
+    typeof r1.json.error === "string" &&
+      (r1.json.error.includes("invalid") || r1.json.error.includes("bad sessionId")),
+    `A2 tampered token unexpected error: ${JSON.stringify(r1.json)}`,
+  );
+  console.log(`  edited token        → ${r1.status} ${String(r1.json.error)} ✓`);
+
+  // Hand-crafted "signed" token with a backdated iat (to pass the wall
+  // clock) — the HMAC can't be forged without the server key.
+  const fakePayload = Buffer.from(
+    JSON.stringify({ v: 1, sid: "x", seed: 1, theme: "volcanic", iat: Date.now() - 999_999 }),
+  ).toString("base64url");
+  const r2 = await postJson("/api/loopitern/voucher", {
+    address: MINTER,
+    rarity: 0,
+    timeSurvived: 60,
+    sessionId: `${fakePayload}.AAAA forgery`,
+    inputLog: { v: 1, ticks: 10, width: 720, height: 720, axis: [], boost: [], freeze: [], tsunami: [] },
+  });
+  assert(r2.status === 403, `forged token expected 403, got ${r2.status}`);
+  assert(
+    typeof r2.json.error === "string" &&
+      (r2.json.error.includes("bad sessionId") || r2.json.error.includes("invalid")),
+    `A2 forged token unexpected error: ${JSON.stringify(r2.json)}`,
+  );
+  console.log(`  forged backdated    → ${r2.status} ${String(r2.json.error)} ✓`);
+
+  // Nonce-free uuid garbage (old format) still rejected.
+  const r3 = await postJson("/api/loopitern/voucher", {
+    address: MINTER,
+    rarity: 0,
+    timeSurvived: 60,
+    sessionId: "2b7b6a30-1111-4d2f-9c66-000000000000",
+    inputLog: { v: 1, ticks: 10, width: 720, height: 720, axis: [], boost: [], freeze: [], tsunami: [] },
+  });
+  assert(r3.status === 403, `garbage token expected 403, got ${r3.status}`);
+  console.log(`  garbage sessionId   → ${r3.status} ${String(r3.json.error)} ✓`);
+}
+
 // --- B. honest autopilot run ≥ 31s on a server-issued session --------------
 
 console.log("\nB. playing an attested run (new sessions until one survives ≥ 31s):");

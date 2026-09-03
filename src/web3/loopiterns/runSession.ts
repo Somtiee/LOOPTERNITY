@@ -5,6 +5,8 @@ import type { ThemeId } from "@/game/types";
 /**
  * A P2M run session issued by POST /api/loopitern/run-seed.
  *
+ * The sessionId is a server-signed token (opaque to us — the server verifies
+ * its HMAC at mint time) that pins the run's seed, theme, and issue time.
  * The seed is public on purpose: the client's ClimbSim is constructed with
  * it, and knowing it doesn't help forge a *winning* input log — the server
  * replays the log through the same sim and only signs what actually
@@ -15,6 +17,9 @@ export type RunSession = {
   seed: number;
   themeId: ThemeId;
 };
+
+/** base64url payload "." base64url HMAC — what the server issues. */
+const SESSION_ID_RE = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 
 export async function requestRunSession(
   address?: string,
@@ -30,7 +35,7 @@ export async function requestRunSession(
     if (
       !data ||
       typeof data.sessionId !== "string" ||
-      !/^[0-9a-f-]{36}$/i.test(data.sessionId) ||
+      !SESSION_ID_RE.test(data.sessionId) ||
       typeof data.seed !== "number" ||
       !Number.isInteger(data.seed) ||
       (data.themeId !== "volcanic" &&
