@@ -10,8 +10,8 @@ import {
 
 type ConnectWalletButtonProps = {
   className?: string;
-  /** Compact for HUD / game-over; full for main menu */
-  size?: "sm" | "md";
+  /** Compact for HUD / game-over; md for menus; lg for the big START-slot CTA */
+  size?: "sm" | "md" | "lg";
 };
 
 function truncateAddress(address: string): string {
@@ -23,10 +23,15 @@ export function ConnectWalletButton({
   className = "",
   size = "md",
 }: ConnectWalletButtonProps) {
-  const pad = size === "sm" ? "px-3 py-2 text-[10px]" : "px-4 py-2.5 text-xs";
+  const pad =
+    size === "sm"
+      ? "min-h-11 px-3 py-2 text-[10px]"
+      : size === "lg"
+        ? "min-h-12 w-full px-6 py-3.5 text-sm tracking-[0.28em] sm:text-base"
+        : "min-h-11 px-4 py-2.5 text-xs";
   const { switchChainAsync } = useSwitchChain();
 
-  const shell = `inline-flex min-h-11 items-center justify-center rounded-xl border font-[family-name:var(--font-display)] tracking-[0.16em] transition active:scale-[0.98] ${pad}`;
+  const shell = `inline-flex items-center justify-center rounded-xl border font-[family-name:var(--font-display)] tracking-[0.16em] transition active:scale-[0.98] ${pad}`;
 
   return (
     <div className={`pointer-events-auto ${className}`}>

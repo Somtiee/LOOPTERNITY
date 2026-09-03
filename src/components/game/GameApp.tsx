@@ -70,7 +70,8 @@ const INITIAL_HUD: HudSnapshot = {
 };
 
 export default function GameApp() {
-  const { address } = useWalletSession();
+  const { address, hasWallet, onRobinhood: walletOnRobinhood } =
+    useWalletSession();
   const { refresh } = usePlayerRegistry();
   const {
     tokenIds,
@@ -270,9 +271,14 @@ export default function GameApp() {
 
   const startRun = useCallback(() => {
     if (mode === "p2e") return;
+    // Connect-first: both modes need a wallet, P2M needs it on Robinhood
+    // Chain (the mint lives there). The menu gates this too — this is the
+    // backstop.
+    if (!hasWallet) return;
+    if (mode === "p2m" && !walletOnRobinhood) return;
     if (mode === "p2m" && supply.soldOut) return;
     launchRun();
-  }, [launchRun, mode, supply.soldOut]);
+  }, [hasWallet, launchRun, mode, supply.soldOut, walletOnRobinhood]);
 
   const restart = useCallback(() => {
     audio.sfx("click");
@@ -357,6 +363,8 @@ export default function GameApp() {
         onEquip={selectEquip}
         p2mThemeId={p2mThemeId}
         soldOut={supply.soldOut}
+        walletConnected={hasWallet}
+        onRobinhood={walletOnRobinhood}
       />
     );
   }

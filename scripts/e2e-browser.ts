@@ -24,6 +24,31 @@ import { SIM_HZ } from "../src/game/sim/simMath";
 const BASE = process.env.E2E_BASE_URL ?? "http://localhost:3000";
 const MINTER = "0x1111111111111111111111111111111111111111";
 
+/**
+ * Minimal EIP-1193 stub injected before app load. Web3Providers'
+ * RestoreInjectedWallet sees eth_accounts return an address and auto-connects
+ * the injected connector on chain 0x1237 (4663), exactly like a real MetaMask
+ * session restored on Robinhood Chain.
+ */
+const WALLET_STUB = `
+  Object.defineProperty(window, "ethereum", {
+    value: {
+      isMetaMask: true,
+      request: async ({ method }) => {
+        if (method === "eth_accounts" || method === "eth_requestAccounts")
+          return ["${MINTER}"];
+        if (method === "eth_chainId") return "0x1237";
+        if (method === "net_version") return "4663";
+        if (method === "wallet_getPermissions") return [];
+        return null;
+      },
+      on() {},
+      removeListener() {},
+    },
+    configurable: true,
+  });
+`;
+
 function fail(msg: string): never {
   console.error(`\nFAIL: ${msg}`);
   process.exit(1);
@@ -115,7 +140,43 @@ type PageP2m = {
 async function main() {
   console.log(`Browser E2E against ${BASE}\n`);
   const browser = await chromium.launch();
+
+  // --- 0. connect-first gate: no wallet ⇒ no START, big CONNECT WALLET ----
+  {
+    const page = await browser.newPage({
+      viewport: { width: 1280, height: 800 },
+    });
+    await page.goto(BASE, { waitUntil: "domcontentloaded" });
+
+    for (const [mode, startLabel] of [
+      ["NORMAL", "START RUN"],
+      ["P2M", "START P2M"],
+    ] as const) {
+      await page
+        .getByRole("button", { name: mode, exact: false })
+        .first()
+        .click();
+      // Two CONNECT WALLET buttons render (top bar + the big start slot) —
+      // the start-slot one is last in the DOM.
+      await page
+        .getByRole("button", { name: "CONNECT WALLET", exact: true })
+        .last()
+        .waitFor({ timeout: 15000 });
+      const startCount = await page
+        .getByRole("button", { name: startLabel, exact: true })
+        .count();
+      assert(
+        startCount === 0,
+        `${mode} without a wallet must not offer ${startLabel}`,
+      );
+      console.log(`  gate: ${mode} blocked without wallet ✓`);
+    }
+    await page.close();
+  }
+
+  // --- played run with a stubbed (auto-connected) wallet --------------------
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  await page.addInitScript(WALLET_STUB);
   page.on("pageerror", (e) => console.error("  [page error]", String(e)));
   page.on("console", (m) => {
     if (m.type() === "error") console.error("  [console error]", m.text());
@@ -124,6 +185,7 @@ async function main() {
   await page.goto(BASE, { waitUntil: "domcontentloaded" });
   // Dev server keeps an HMR socket open — networkidle never fires.
   await page.getByRole("button", { name: "P2M", exact: false }).first().click();
+  // The stub wallet auto-connects (~50ms) and unlocks the START button.
   await page.getByRole("button", { name: "START P2M" }).click();
 
   // Session must exist before tick 0 — poll the dev handle.
@@ -161,9 +223,9 @@ async function main() {
     );
     if (record.timeSurvived >= 31) break;
     if (attempt >= 8) fail("browser autopilot never survived 31s in 8 tries");
-    // NEW GAME → GameApp fetches a fresh session, then restarts.
+    // RUN AGAIN → GameApp fetches a fresh session, then restarts.
     await page
-      .getByRole("button", { name: "NEW GAME", exact: true })
+      .getByRole("button", { name: "RUN AGAIN", exact: true })
       .click();
     await page.waitForFunction(
       () => (window as unknown as PageP2m).__loopiternP2m?.runRecord == null,

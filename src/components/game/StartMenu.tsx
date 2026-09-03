@@ -32,6 +32,10 @@ type StartMenuProps = {
   p2mThemeId: ThemeId;
   /** Live sellout state from the contract. */
   soldOut: boolean;
+  /** Both modes need a connected wallet before START unlocks. */
+  walletConnected: boolean;
+  /** P2M also needs the wallet on Robinhood Chain — the mint lives there. */
+  onRobinhood: boolean;
 };
 
 const DIFFICULTY_ORDER: DifficultyId[] = ["easy", "medium", "hard"];
@@ -68,6 +72,8 @@ export function StartMenu({
   onEquip,
   p2mThemeId,
   soldOut,
+  walletConnected,
+  onRobinhood,
 }: StartMenuProps) {
   const [hubOpen, setHubOpen] = useState(false);
   const [tab, setTab] = useState<"characters" | "loopiterns">("characters");
@@ -76,8 +82,10 @@ export function StartMenu({
   const countdownMs = useUtcHourCountdown(mode === "p2m");
   const supply = useLoopiternsSupply();
   const p2mLocked = mode === "p2m" && soldOut;
+  const walletReady =
+    mode === "p2m" ? walletConnected && onRobinhood : walletConnected;
   const canStart =
-    mode === "normal" || (mode === "p2m" && !soldOut);
+    mode !== "p2e" && walletReady && (mode === "normal" || !soldOut);
 
   const click = (fn: () => void, sting?: "click" | "enemy") => {
     void audio.unlock();
@@ -381,34 +389,45 @@ export function StartMenu({
         )}
 
         <div className="mx-auto mt-10 flex w-full max-w-md flex-col items-center gap-2">
-          <button
-            type="button"
-            disabled={!canStart}
-            onClick={() => {
-              if (!canStart) return;
-              void audio.unlock();
-              audio.sfx("click");
-              audio.sfx("start");
-              onStart();
-            }}
-            className={`relative min-h-12 w-full overflow-hidden rounded-2xl px-6 py-3.5 font-[family-name:var(--font-display)] text-sm tracking-[0.28em] text-[#05140a] transition sm:text-base ${
-              canStart
-                ? "start-pulse hover:brightness-110 active:scale-[0.99]"
-                : "cursor-not-allowed opacity-50"
-            }`}
-            style={{
-              background: "linear-gradient(90deg, #00C805, #7CFF7C)",
-              boxShadow: canStart ? "0 0 40px #00C80555" : undefined,
-            }}
-          >
-            {mode === "p2e"
-              ? "COMING SOON"
-              : p2mLocked
-                ? "MINTED OUT"
-                : mode === "p2m"
-                  ? "START P2M"
-                  : "START RUN"}
-          </button>
+          {mode === "p2e" || p2mLocked || walletReady ? (
+            <button
+              type="button"
+              disabled={!canStart}
+              onClick={() => {
+                if (!canStart) return;
+                void audio.unlock();
+                audio.sfx("click");
+                audio.sfx("start");
+                onStart();
+              }}
+              className={`relative min-h-12 w-full overflow-hidden rounded-2xl px-6 py-3.5 font-[family-name:var(--font-display)] text-sm tracking-[0.28em] text-[#05140a] transition sm:text-base ${
+                canStart
+                  ? "start-pulse hover:brightness-110 active:scale-[0.99]"
+                  : "cursor-not-allowed opacity-50"
+              }`}
+              style={{
+                background: "linear-gradient(90deg, #00C805, #7CFF7C)",
+                boxShadow: canStart ? "0 0 40px #00C80555" : undefined,
+              }}
+            >
+              {mode === "p2e"
+                ? "COMING SOON"
+                : p2mLocked
+                  ? "MINTED OUT"
+                  : mode === "p2m"
+                    ? "START P2M"
+                    : "START RUN"}
+            </button>
+          ) : (
+            <>
+              <ConnectWalletButton size="lg" />
+              <p className="text-center text-[11px] text-white/45">
+                {mode === "p2m"
+                  ? "Connect your wallet on Robinhood Chain to play."
+                  : "Connect your wallet to play."}
+              </p>
+            </>
+          )}
         </div>
       </div>
 
