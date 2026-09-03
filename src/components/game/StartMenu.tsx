@@ -14,6 +14,7 @@ import { LoopiternEquip } from "./LoopiternEquip";
 import { LoopiternPortrait } from "./LoopiternPortrait";
 import { MuteButton } from "./MuteButton";
 import type { EquippedLoopitern } from "@/web3/loopiterns/equip";
+import { formatMintPriceEth } from "@/web3/loopiterns";
 import { useLoopiternsSupply } from "@/web3/loopiterns/useLoopiternsSupply";
 
 type StartMenuProps = {
@@ -81,6 +82,11 @@ export function StartMenu({
   const accent = getTheme(p2mThemeId).accent;
   const countdownMs = useUtcHourCountdown(mode === "p2m");
   const supply = useLoopiternsSupply();
+  // P2M costs the on-chain mint price per LOOPITERN — never badge it "free".
+  const p2mPriceLabel =
+    supply.mintPrice !== null
+      ? `${formatMintPriceEth(supply.mintPrice)} / MINT`
+      : "MINT COSTS ETH";
   const p2mLocked = mode === "p2m" && soldOut;
   const walletReady =
     mode === "p2m" ? walletConnected && onRobinhood : walletConnected;
@@ -187,11 +193,11 @@ export function StartMenu({
                   P2M
                 </span>
                 <span className="rounded-md border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] tracking-[0.14em] text-white/55">
-                  {mode === "p2m" && soldOut ? "MINTED OUT" : "FREE"}
+                  {mode === "p2m" && soldOut ? "MINTED OUT" : p2mPriceLabel}
                 </span>
               </div>
               <p className="mt-2 text-xs leading-relaxed text-white/45">
-                Survive to unlock a LOOPITERN mint.
+                Survive to unlock a mint tier, then pay to mint.
               </p>
             </button>
 

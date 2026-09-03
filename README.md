@@ -7,7 +7,7 @@ A 2D vertical endless survival climber that lives on **Robinhood Chain** (chain 
 Three modes from the start menu:
 
 - **Normal (free)** — pick a world theme and Easy / Medium / Hard. Personal bests save locally, and sync to your wallet address if you connect one. Minted LOOPITERNS can be equipped here for gameplay traits.
-- **P2M — Play-to-Mint (free)** — the same climb at a locked Medium difficulty. Survive to unlock mint tiers (45s Common → 180s Legendary), then mint a LOOPITERN for the on-chain price. Starts without a wallet; connect one only when you're ready to mint.
+- **P2M — Play-to-Mint** — the same climb at a locked Medium difficulty. Survive to unlock mint tiers (45s Common → 180s Legendary), then pay the on-chain mint price (0.0002 ETH per LOOPITERN) to mint. Starts without a wallet; connect one only when you're ready to mint.
 - **P2E — Coming Soon** — disabled. No leaderboards, no prize payouts, nothing promised yet.
 
 ### Controls

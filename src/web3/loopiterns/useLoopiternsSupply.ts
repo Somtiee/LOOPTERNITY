@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { useReadContract } from "wagmi";
 import { ROBINHOOD_CHAIN_ID } from "@/web3/config";
 import { loopiternsAbi } from "./abi";
-import { getLoopiternsAddress } from "./address";
+import { getLoopiternsAddress, getMintPriceFallbackWei } from "./address";
 
 export type LoopiternsSupply = {
   /** True when the contract address is configured. */
@@ -20,6 +20,11 @@ export type LoopiternsSupply = {
   /** Sum of remainingByRarity when read, else null. */
   remainingAll: number | null;
   paused: boolean | null;
+  /**
+   * Live mintPrice in wei, with the env fallback when the read fails —
+   * mirrors useMintLoopitern's resolution. Null when neither is available.
+   */
+  mintPrice: bigint | null;
   /**
    * Sold out per live reads: totalSupply >= 10000 or remainingAll == 0.
    * False when the read failed or the contract address is missing —
@@ -69,6 +74,14 @@ export function useLoopiternsSupply(): LoopiternsSupply {
     query: { enabled },
   });
 
+  const mintPriceQuery = useReadContract({
+    address: contract,
+    abi: loopiternsAbi,
+    functionName: "mintPrice",
+    chainId: ROBINHOOD_CHAIN_ID,
+    query: { enabled },
+  });
+
   const remainingByRarity = useMemo(() => {
     const raw = remainingQuery.data;
     if (!raw) return null;
@@ -101,11 +114,13 @@ export function useLoopiternsSupply(): LoopiternsSupply {
     remainingByRarity: remainingQuery.isError ? null : remainingByRarity,
     remainingAll: failed ? null : remainingAll,
     paused: pausedQuery.isError ? null : pausedQuery.data ?? null,
+    mintPrice: mintPriceQuery.data ?? getMintPriceFallbackWei() ?? null,
     soldOut,
     refetch: () => {
       void totalSupplyQuery.refetch();
       void remainingQuery.refetch();
       void pausedQuery.refetch();
+      void mintPriceQuery.refetch();
     },
   };
 }
