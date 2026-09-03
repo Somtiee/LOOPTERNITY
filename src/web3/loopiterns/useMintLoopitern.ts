@@ -29,6 +29,13 @@ export type MintTxStatus =
 
 const MAX_PER_WALLET = 5;
 
+/** Voucher response from POST /api/loopitern/voucher. */
+type Voucher = {
+  deadline: string;
+  nonce: string;
+  signature: `0x${string}`;
+};
+
 function remainingToNumbers(
   data: readonly bigint[] | undefined,
 ): number[] | undefined {
@@ -49,9 +56,39 @@ export function formatMintPriceEth(wei: bigint): string {
   return `${eth} ETH`;
 }
 
+async function fetchVoucher(
+  address: Address,
+  rarity: number,
+  timeSurvived: number,
+): Promise<Voucher> {
+  const res = await fetch("/api/loopitern/voucher", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ address, rarity, timeSurvived }),
+  });
+  const data = (await res.json().catch(() => null)) as
+    | (Voucher & { error?: string })
+    | { error: string }
+    | null;
+  if (!res.ok || !data || !("signature" in data) || !data.signature) {
+    const reason =
+      data && "error" in data && typeof data.error === "string"
+        ? data.error
+        : "Could not get a mint voucher. Retry.";
+    throw new Error(reason);
+  }
+  return {
+    deadline: data.deadline,
+    nonce: data.nonce,
+    signature: data.signature,
+  };
+}
+
 /**
- * P2M mint. Client survival / rarity is spoofable — the contract still only
- * enforces price, max 5, 10k cap, and per-rarity remaining. No "verified" badge.
+ * P2M mint (v2, voucher-gated). The client asks this server for a signed
+ * voucher; the chain checks the signature, price, max 5, 10k cap, and
+ * per-rarity remaining. No "verified" badge — the voucher only proves the
+ * server saw a run that reached the rarity gate.
  */
 export function useMintLoopitern(timeSurvived: number) {
   const { address: wallet, onRobinhood, hasWallet, chainId } =
@@ -220,21 +257,34 @@ export function useMintLoopitern(timeSurvived: number) {
   const mint = useCallback(async () => {
     if (!contract || !resolved || mintPrice === undefined) return;
     if (!hasWallet || !onRobinhood) return;
+    if (!wallet) return;
     if (ownedCount >= MAX_PER_WALLET || paused) return;
     setLocalError(null);
     setTokenId(null);
     reset();
     try {
+      // 1) Server voucher — the rarity gate check lives there now.
+      const voucher = await fetchVoucher(wallet, resolved.id, timeSurvived);
+      // 2) On-chain mint with the signed voucher.
       await writeContractAsync({
         address: contract,
         abi: loopiternsAbi,
-        functionName: "mint",
-        args: [resolved.id],
+        functionName: "mintWithVoucher",
+        args: [
+          resolved.id,
+          BigInt(voucher.deadline),
+          BigInt(voucher.nonce),
+          voucher.signature,
+        ],
         value: mintPrice,
         chainId: ROBINHOOD_CHAIN_ID,
       });
     } catch (e) {
-      setLocalError(walletTxError(e, chainId ?? ROBINHOOD_CHAIN_ID, "mint"));
+      const message =
+        e instanceof Error && e.message
+          ? e.message
+          : walletTxError(e, chainId ?? ROBINHOOD_CHAIN_ID, "mint");
+      setLocalError(message);
     }
   }, [
     chainId,
@@ -246,6 +296,8 @@ export function useMintLoopitern(timeSurvived: number) {
     paused,
     reset,
     resolved,
+    timeSurvived,
+    wallet,
     writeContractAsync,
   ]);
 

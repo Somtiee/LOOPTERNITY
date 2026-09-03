@@ -2,25 +2,36 @@
   "network": "robinhood",
   "chainId": 4663,
   "contract": "Loopiterns",
-  "address": "0x7016CfF42264C8D499a32bBe2b5A039bfd0Ed19f",
+  "version": "2 (voucher-gated mint)",
+  "address": "0x0914DcfdE10e5Df2aA1D8C850213712F64852637",
   "mintPriceWei": "200000000000000",
   "mintPriceNote": "0.0002 ETH per mint (~$0.50 target). Owner can adjust via setMintPrice.",
   "deployer": "0xED638d2de9E7b6E8D06514A161bb2cEFf28bfCDd",
-  "deployTxHash": "0x865c1df8e634023117d484c25ded458cd26dd34464a50c1c90c570582b51f06c",
-  "deployBlock": 51832171,
-  "deployGasUsed": "2180758",
+  "deployTxHash": "0x9cdf068f55be1d61944bf60b72a9342f6f355fc9b2606b1d842dbe0adb3d8ec3",
+  "deployBlock": 53336110,
+  "deployGasUsed": "3304029 (estimate incl. script overhead)",
   "rpc": "https://rpc.mainnet.chain.robinhood.com",
   "explorer": "https://robinhoodchain.blockscout.com",
   "status": "DEPLOYED",
-  "statusNote": "Broadcast 2026-09-01 via forge script --broadcast --slow. Verified on-chain: name=LOOPITERNS, owner=treasury deployer, totalSupply=0, 17.6KB runtime code. baseURI deployed EMPTY.",
+  "statusNote": "Broadcast 2026-09-03 via forge script --broadcast --slow. Verified on-chain: owner=treasury, mintSigner=0x486eCE21831ffa07661EF745746e2ec47a486222 (server voucher signer, key lives only in gitignored contracts/.env as VOUCHER_SIGNER_PRIVATE_KEY), mintPrice=0.0002 ETH, totalSupply=0, not paused, ~20.3KB runtime code. baseURI deployed EMPTY. Minting is voucher-only: mint() removed, mintWithVoucher(rarity, deadline, nonce, signature) requires an EIP-712 server signature, single-use nonce, 10-minute deadline.",
   "owner": "0xED638d2de9E7b6E8D06514A161bb2cEFf28bfCDd (treasury wallet — also the deployer)",
+  "v1": {
+    "address": "0x7016CfF42264C8D499a32bBe2b5A039bfd0Ed19f",
+    "status": "RETIRED 2026-09-03",
+    "retireTx": {
+      "withdraw": "0xb985003ca2a2235c16e75dcc68f6fb829fe9f84350c7e9bbf4afb7bf20ecf9ab (0.0006 ETH swept to treasury, contract balance now 0)",
+      "pause": "0x189394dbba748cd440ebd9e921dd2790fd6268224cf5c31fc5e743467ff20829"
+    },
+    "totalSupplyAtRetire": 3,
+    "note": "Tokens #1 #2 #3 remain on-chain at the v1 address but the app no longer reads v1 — set NEXT_PUBLIC_LOOPITERNS_ADDRESS to the v2 address above and those 3 NFTs disappear from the app inventory."
+  },
   "postDeployChecklist": [
-    "DONE: forge build + forge test (18/18 incl. withdraw tests).",
-    "DONE: broadcast on chain 4663, tx 0x865c1df8...b51f06c, block 51832171, status success.",
-    "DONE: address recorded here and in .env.local + docs/vercel-env.txt as NEXT_PUBLIC_LOOPITERNS_ADDRESS.",
+    "DONE: forge build + forge test (30/30 incl. voucher forge/replay/expiry tests).",
+    "DONE: broadcast on chain 4663, tx 0x9cdf068f...db3d8ec3, status success.",
+    "DONE: address recorded here; set in .env.local as NEXT_PUBLIC_LOOPITERNS_ADDRESS (not committed) and in docs/vercel-env.txt (name-only).",
+    "DONE: VOUCHER_SIGNER_PRIVATE_KEY (app, server-only) == contracts/.env VOUCHER_SIGNER_PRIVATE_KEY; its address is the on-chain mintSigner.",
     "TODO: verify source on https://robinhoodchain.blockscout.com — the API is Cloudflare-gated so forge verify-contract cannot reach it programmatically; use the explorer's web UI (Contract > Verify & Publish, solc 0.8.29, optimizer on) in a browser.",
-    "TODO: when Prompt K's metadata route exists, call setBaseURI (owner = treasury).",
     "TODO (optional): set setContractURI for marketplace listing metadata.",
-    "Treasury sweep: withdraw(0xED638d2de9E7b6E8D06514A161bb2cEFf28bfCDd) onlyOwner, forwards full balance via low-level call, reverts WithdrawFailed on rejection, emits Withdrawn(to, amount)."
+    "Treasury sweep: withdraw(to) onlyOwner on the v2 contract, same as v1."
   ]
 }

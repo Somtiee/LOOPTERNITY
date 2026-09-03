@@ -11,10 +11,14 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
  * @title Loopiterns
  * @notice ERC-721 collection for LOOPTERNITY on Robinhood Chain (4663).
  *
- * Client survival time is spoofable. This contract does **not** prove a player
- * lasted 45s / 180s. It only enforces: exact `mintPrice`, max 5 per wallet,
- * global 10_000 cap, and remaining supply per rarity (with drop-down to a
- * lower rarity than requested, never an upgrade).
+ * v2: public mint() is gone. Client survival time is spoofable, so the
+ * mint is now gated by an off-chain server voucher: `mintWithVoucher`
+ * recovers the signer from a signature bound to (minter, rarity, deadline,
+ * nonce, chainid, this contract). The server only signs when the run's
+ * survival time meets the rarity gate (45/60/90/120/180s). On-chain this
+ * contract still enforces: server signature, exact `mintPrice`, max 5 per
+ * wallet, global 10_000 cap, and remaining supply per rarity (with
+ * drop-down to a lower rarity than requested, never an upgrade).
  *
  * Rarity ids: 0 Common, 1 Uncommon, 2 Rare, 3 Epic, 4 Legendary.
  */
@@ -33,9 +37,15 @@ contract Loopiterns is ERC721Enumerable, Ownable, Pausable {
     string public baseURI;
     string public contractURI;
 
+    /// @notice Voucher signer, settable by the owner (server key rotation).
+    address public mintSigner;
+
+    /// @notice One voucher per `nonce` — replays revert.
+    mapping(uint256 nonce => bool) public nonceUsed;
+
     mapping(uint256 tokenId => uint8) public tokenRarity;
     mapping(uint256 tokenId => uint64) public mintedAt;
-    /// @dev Client-reported seconds. Not verified. Do not use for scoring.
+    /// @dev Vouchered server-side survival seconds. Not client-supplied.
     mapping(uint256 tokenId => uint256) public claimedSeconds;
 
     event Minted(address indexed to, uint256 indexed id, uint8 rarity, uint8 requested);
@@ -43,19 +53,26 @@ contract Loopiterns is ERC721Enumerable, Ownable, Pausable {
     event BaseURIUpdated(string baseURI);
     event ContractURIUpdated(string contractURI);
     event Withdrawn(address indexed to, uint256 amount);
+    event MintSignerUpdated(address indexed mintSigner);
 
     error InvalidRarity();
     error WrongPrice();
     error WalletCap();
     error SoldOut();
     error WithdrawFailed();
+    error BadVoucher();
+    error ExpiredVoucher();
+    error UsedNonce();
 
-    constructor(uint256 mintPrice_, string memory baseURI_, address owner_)
-        ERC721("LOOPITERNS", "LOOP")
-        Ownable(owner_)
-    {
+    constructor(
+        uint256 mintPrice_,
+        string memory baseURI_,
+        address owner_,
+        address mintSigner_
+    ) ERC721("LOOPITERNS", "LOOP") Ownable(owner_) {
         mintPrice = mintPrice_;
         baseURI = baseURI_;
+        mintSigner = mintSigner_;
         rarityCap[0] = 5_000;
         rarityCap[1] = 2_500;
         rarityCap[2] = 1_500;
@@ -95,21 +112,80 @@ contract Loopiterns is ERC721Enumerable, Ownable, Pausable {
         }
     }
 
+    /// @notice Domain separator fields for voucher signatures: bind every
+    ///         voucher to this minter, rarity, deadline, nonce, chain, contract.
+    bytes32 private constant VOUCHER_TYPEHASH =
+        keccak256(
+            "LoopiternsVoucher(address minter,uint8 rarity,uint256 deadline,uint256 nonce)"
+        );
+    bytes32 private constant DOMAIN_NAME = keccak256("Loopiterns");
+    bytes32 private constant DOMAIN_VERSION = keccak256("2");
+
+    function _domainSeparator() internal view returns (bytes32) {
+        uint256 chainId;
+        assembly {
+            chainId := chainid()
+        }
+        return keccak256(
+            abi.encode(
+                keccak256(
+                    "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+                ),
+                DOMAIN_NAME,
+                DOMAIN_VERSION,
+                chainId,
+                address(this)
+            )
+        );
+    }
+
     /**
-     * @notice Pay `mintPrice` for one LOOPITERN of `rarity` or the next lower
-     *         rarity that still has supply. `claimedSeconds` is stored untrusted.
+     * @notice Pay `mintPrice` for one LOOPITERN using a server voucher.
+     *         The signature must be from `mintSigner` over
+     *         EIP-712 (minter = msg.sender, rarity, deadline, nonce) on this
+     *         chain and this contract. The voucher dies with the deadline and
+     *         its nonce is single-use.
      */
-    function mint(uint8 rarity) external payable whenNotPaused returns (uint256) {
+    function mintWithVoucher(
+        uint8 rarity,
+        uint256 deadline,
+        uint256 nonce,
+        bytes calldata signature
+    ) external payable whenNotPaused returns (uint256) {
+        if (rarity >= RARITY_COUNT) revert InvalidRarity();
+        if (block.timestamp > deadline) revert ExpiredVoucher();
+        if (nonceUsed[nonce]) revert UsedNonce();
+        if (nonce == 0 || signature.length != 65) revert BadVoucher();
+
+        bytes32 digest = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                _domainSeparator(),
+                keccak256(abi.encode(VOUCHER_TYPEHASH, msg.sender, rarity, deadline, nonce))
+            )
+        );
+        // ecrecover returns 0 on malformed input — reject it and the zero address.
+        address recovered = ecrecover(digest, _sigV(signature), _sigR(signature), _sigS(signature));
+        if (recovered == address(0) || recovered != mintSigner) revert BadVoucher();
+
+        nonceUsed[nonce] = true;
         return _mintTo(msg.sender, rarity, 0);
     }
 
-    function mint(uint8 rarity, uint256 claimedSeconds_)
-        external
-        payable
-        whenNotPaused
-        returns (uint256)
-    {
-        return _mintTo(msg.sender, rarity, claimedSeconds_);
+    /// @dev Split a 65-byte calldata signature into v / r / s.
+    function _sigV(bytes calldata sig) private pure returns (uint8) {
+        return uint8(sig[64]);
+    }
+    function _sigR(bytes calldata sig) private pure returns (bytes32) {
+        return bytes32(sig[0:32]);
+    }
+    function _sigS(bytes calldata sig) private pure returns (bytes32) {
+        return bytes32(sig[32:64]);
+    }
+
+    function setMintSigner(address mintSigner_) external onlyOwner {
+        mintSigner = mintSigner_;
+        emit MintSignerUpdated(mintSigner_);
     }
 
     function setMintPrice(uint256 mintPrice_) external onlyOwner {

@@ -7,9 +7,16 @@ NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=
 # NEXT_PUBLIC_RPC_URL=https://rpc.mainnet.chain.robinhood.com
 
 # LOOPITERNS ERC-721 on Robinhood (4663). Empty / zero = mint disabled.
-NEXT_PUBLIC_LOOPITERNS_ADDRESS=0x7016CfF42264C8D499a32bBe2b5A039bfd0Ed19f
+# Set to the v2 (voucher mint) contract address after deploy.
+NEXT_PUBLIC_LOOPITERNS_ADDRESS=
 # Optional fallback if mintPrice() cannot be read. Wei only, no USD.
 # NEXT_PUBLIC_LOOPITERNS_MINT_PRICE_WEI=
+
+# Server-only (Vercel: NOT exposed to the client). Private key that signs
+# mint vouchers for /api/loopitern/voucher. Its public address must equal
+# MINT_SIGNER_ADDRESS in contracts/.env at deploy time.
+# Generate: cast wallet new  (never commit the key)
+VOUCHER_SIGNER_PRIVATE_KEY=
 
 # Paste your Reown project id into NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID.
 # Needed on mobile so WalletConnect stays connected after refresh.
@@ -24,4 +31,6 @@ NEXT_PUBLIC_LOOPITERNS_ADDRESS=0x7016CfF42264C8D499a32bBe2b5A039bfd0Ed19f
 # NEVER on Vercel:
 #   PRIVATE_KEY, TREASURY private key, Foundry deploy keys.
 #   Those belong only in contracts/.env (gitignored) on this machine.
+#   VOUCHER_SIGNER_PRIVATE_KEY above is the ONE server-side key on
+#   Vercel — it holds no funds, it only signs vouchers.
 # ---------------------------------------------------------------

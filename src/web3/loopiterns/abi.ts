@@ -61,9 +61,14 @@ export const loopiternsAbi = [
   },
   {
     type: "function",
-    name: "mint",
+    name: "mintWithVoucher",
     stateMutability: "payable",
-    inputs: [{ name: "rarity", type: "uint8" }],
+    inputs: [
+      { name: "rarity", type: "uint8" },
+      { name: "deadline", type: "uint256" },
+      { name: "nonce", type: "uint256" },
+      { name: "signature", type: "bytes" },
+    ],
     outputs: [{ name: "", type: "uint256" }],
   },
   {

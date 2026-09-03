@@ -152,7 +152,7 @@ function P2mMintBlock({ timeSurvived }: { timeSurvived: number }) {
   } else if (!onRobinhood) {
     disableReason = `Wrong network — tap the button above to switch to ${CHAIN_SWITCH_LABEL}.`;
   } else if (ownedCount >= MAX_LOOPITERNS_PER_WALLET) {
-    disableReason = `Wallet full — max ${MAX_LOOPITERNS_PER_WALLET} LOOPITERNS per wallet (minting only; secondary buys are not capped).`;
+    disableReason = "MINT LIMIT REACHED — 5/5 LOOPITERNS";
   }
 
   const mintEnabled = disableReason === null && !busy && status !== "success";
