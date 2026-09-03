@@ -45,4 +45,25 @@ export function listThemes(): ThemePalette[] {
   return Object.values(THEMES);
 }
 
+/** Fixed rotation order for the P2M hourly theme. */
+export const THEME_ORDER: ThemeId[] = ["volcanic", "planetary", "antarctica"];
+
+const MS_PER_HOUR = 3_600_000;
+
+/**
+ * P2M themes rotate on UTC hour boundaries: every player sees the same
+ * theme for the same hour, so mint runs share the same world.
+ */
+export function themeForEpochHour(epochHours: number): ThemePalette {
+  const index = ((epochHours % THEME_ORDER.length) + THEME_ORDER.length) %
+    THEME_ORDER.length;
+  return THEMES[THEME_ORDER[index]!];
+}
+
+/** Milliseconds from `now` until the next UTC hour boundary. */
+export function nextUtcHourChange(now: number): number {
+  const msIntoHour = ((now % MS_PER_HOUR) + MS_PER_HOUR) % MS_PER_HOUR;
+  return MS_PER_HOUR - msIntoHour;
+}
+
 export { volcanicTheme };

@@ -2,4 +2,7 @@ out/
 cache/
 abi.json
 .env
+.env.*
 vendor-tmp/
+PRIVATE_KEY*
+broadcast/

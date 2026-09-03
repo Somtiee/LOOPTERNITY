@@ -4,7 +4,9 @@ import {
   BELLY_TINTS,
   CAPE_TINTS,
   EYE_TINTS,
-  findMark,
+  findShadingStyle,
+  findShadingTone,
+  findShadingWeight,
   findTint,
   type LoopiternDna,
 } from "./loopiternTraits";
@@ -38,10 +40,17 @@ export type LoopiternRigPalette = {
   trim: string;
   /** Eye sclera — the DNA eye tint. */
   eye: string;
-  /** DNA mark id ("chevron", "star", …). Null = no equipped DNA. */
-  mark: string | null;
-  /** Solid color the mark is drawn in (accent). */
-  markFill: string;
+  /**
+   * DNA sketchbook shading (style + weight + tone, with the resolved
+   * stroke color). Null = no equipped DNA — keep the rarity's clean look.
+   */
+  shading: {
+    style: string;
+    weight: string;
+    tone: string;
+    /** Resolved stroke color — fixed tone hex or darkened accent. */
+    toneHex: string;
+  } | null;
   /** Legendary cape tint. Null below rarity 4. */
   cape: string | null;
 };
@@ -70,7 +79,11 @@ export function lighten(hex: string, t: number): string {
   return toHex(r + (255 - r) * t, g + (255 - g) * t, b + (255 - b) * t);
 }
 
-const MARK_FALLBACK = "chevron";
+/** Mix a hex color toward black by `t` (0..1). */
+export function darken(hex: string, t: number): string {
+  const [r, g, b] = parseHex(hex);
+  return toHex(r * (1 - t), g * (1 - t), b * (1 - t));
+}
 
 function tintHex(
   channel: Parameters<typeof findTint>[0],
@@ -79,6 +92,8 @@ function tintHex(
 ): string {
   return findTint(channel, id)?.hex ?? fallback;
 }
+
+const SHADING_FALLBACK_STYLE = "hatchDiag";
 
 /**
  * DNA-derived rig palette. Unknown ids (schema drift) fall back to catalog
@@ -92,14 +107,21 @@ export function loopiternRigPalette(dna: LoopiternDna): LoopiternRigPalette {
     dna.capeTint != null
       ? tintHex("capeTint", dna.capeTint, CAPE_TINTS[0]!.hex)
       : null;
-  const mark = findMark(dna.mark) ? dna.mark : MARK_FALLBACK;
+  const style = findShadingStyle(dna.shadingStyle)
+    ? dna.shadingStyle
+    : SHADING_FALLBACK_STYLE;
+  const weight = findShadingWeight(dna.shadingWeight)
+    ? dna.shadingWeight
+    : "medium";
+  const tone = findShadingTone(dna.shadingTone) ? dna.shadingTone : "graphite";
+  const toneHex =
+    findShadingTone(dna.shadingTone)?.hex ?? darken(accent, 0.45);
   return {
     fill: accent,
     belly,
     trim: lighten(accent, 0.42),
     eye,
-    mark,
-    markFill: accent,
+    shading: { style, weight, tone, toneHex },
     cape,
   };
 }
@@ -114,8 +136,7 @@ export function loopiternRarityPalette(
     belly: body.belly,
     trim: body.trim,
     eye: LOOPITERN_CREAM,
-    mark: null,
-    markFill: body.trim,
+    shading: null,
     cape: rarity === 4 ? LOOPITERN_GREEN : null,
   };
 }

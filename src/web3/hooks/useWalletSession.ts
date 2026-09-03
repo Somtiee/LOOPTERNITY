@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
-import { BASE_CHAIN } from "@/web3/config";
+import { ROBINHOOD_CHAIN } from "@/web3/config";
 
 const RESTORE_MS = 1500;
 
@@ -29,7 +29,7 @@ export function useWalletSession() {
 
   const restoring = reconnecting && !restoreExpired;
   const hasWallet = Boolean(address);
-  const onBase = hasWallet && chainId === BASE_CHAIN.id;
+  const onRobinhood = hasWallet && chainId === ROBINHOOD_CHAIN.id;
 
   return {
     address,
@@ -37,7 +37,7 @@ export function useWalletSession() {
     status,
     restoring,
     hasWallet,
-    onBase,
+    onRobinhood,
     isConnected: hasWallet && status !== "disconnected",
     isReconnecting,
     isConnecting,

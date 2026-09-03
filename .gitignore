@@ -33,6 +33,8 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 !**/.env.example
+# never commit key material, wherever it lands
+**/PRIVATE_KEY*
 
 # vercel
 .vercel
@@ -46,6 +48,9 @@ tmp-natives/
 contracts/out/
 contracts/cache/
 contracts/broadcast/
+
+# J3 composed stills — generate via scripts/compose-loopitern.ts (not 10k dumps)
+/public/loopiterns/generated/
 
 # typescript
 *.tsbuildinfo

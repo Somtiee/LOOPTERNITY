@@ -1,5 +1,4 @@
-import type { CharacterId, DifficultyId, ThemeId } from "@/game/types";
-import type { Hex } from "viem";
+import type { CharacterId, DifficultyId } from "@/game/types";
 
 export type AddressKey = `0x${string}`;
 
@@ -14,38 +13,6 @@ export type PlayerProfile = {
   characterId?: CharacterId;
 };
 
-export type P2ERunRecord = {
-  address: AddressKey;
-  weekId: string;
-  at: number;
-  survivalSeconds: number;
-  multiplierHundredths: number;
-  skillScore: number;
-  encryptedSurvivalMs?: Hex;
-  encryptedMultiplier?: Hex;
-};
-
-export type WeekPayout = {
-  address: AddressKey;
-  rank: number;
-  shareBps: number;
-  amountWei: string;
-};
-
-export type WeekState = {
-  weekId: string;
-  themeId: ThemeId;
-  /** Inco-sealed theme index (0–2), if encryption already ran */
-  sealedThemeCipher?: Hex;
-  poolWei: string;
-  treasuryAccruedWei: string;
-  settled: boolean;
-  runs: P2ERunRecord[];
-  payouts: WeekPayout[];
-};
-
-export type P2EDatabase = {
+export type PlayerDatabase = {
   players: Record<string, PlayerProfile>;
-  week: WeekState | null;
-  archive: WeekState[];
 };

@@ -1,17 +1,23 @@
 /**
- * LOOPITERN DNA schema (Prompt J4, schema v2).
+ * LOOPITERN DNA schema (Prompt J4, schema v4).
  *
  * LOCKED DIRECTION: the 5 painted hero bases (`rarity-{0..4}.png`) stay
  * forever — never 10k unique paintings. Per-token uniqueness = VISIBLE
- * recolor + ONE always-visible mark, driven by these DNA channels:
+ * recolor + a SKETCHBOOK SHADING treatment, driven by these DNA channels:
  *
- *   Eye Tint, Belly Tint, Accent Tint, Mark (never "none"), Cape Tint
- *   (Legendary only).
+ *   Eye Tint, Belly Tint, Accent Tint,
+ *   Shading (style + weight + tone, every token — light pencil-style
+ *   shading drawn only inside the character's painted shadow areas),
+ *   Cape Tint (Legendary only).
+ *
+ * No symbols: the v3 torso marks and ink tattoos were removed after user
+ * review — shading distinguishes tokens the way an artist shades a
+ * cartoon portrait in a sketchbook, keeping the clean mascot look.
  *
  * Marketplace stills (J3 compositor) recolor the base painting with this
- * palette and stamp the mark on the torso. The in-game climb rig
- * (J4 `drawLoopitern`) uses the SAME palette via `loopiternRigPalette`.
- * The serial is metadata only — no visual plate.
+ * palette and hatch the shadows per the shading DNA. The in-game climb
+ * rig (J4 `drawLoopitern`) uses the SAME palette via
+ * `loopiternRigPalette`. The serial is metadata only — no visual plate.
  *
  * Hash seed (deterministic, documented):
  *   FNV-1a 32 of UTF-8 `${tokenId}|${rarity}|${LOOPITERN_TRAIT_SCHEMA_VERSION}`
@@ -29,7 +35,7 @@ import {
 } from "./mintTiers";
 
 /** Bump when catalogs change so compositors can invalidate caches. */
-export const LOOPITERN_TRAIT_SCHEMA_VERSION = 2;
+export const LOOPITERN_TRAIT_SCHEMA_VERSION = 4;
 
 export type OpenSeaAttribute = {
   trait_type: string;
@@ -48,12 +54,6 @@ export type TintEntry = {
   minRarity?: LoopiternRarityId;
 };
 
-/** One always-visible torso mark. There is no "none" variant. */
-export type MarkEntry = {
-  id: string;
-  name: string;
-  minRarity?: LoopiternRarityId;
-};
 
 export type LoopiternDna = {
   schemaVersion: typeof LOOPITERN_TRAIT_SCHEMA_VERSION;
@@ -63,7 +63,12 @@ export type LoopiternDna = {
   eyeTint: string;
   bellyTint: string;
   accentTint: string;
-  mark: string;
+  /** Sketchbook shading stroke pattern id. Every token rolls one. */
+  shadingStyle: string;
+  /** Shading weight id (light / medium / bold). Every token rolls one. */
+  shadingWeight: string;
+  /** Shading tone id. Every token rolls one. */
+  shadingTone: string;
   /** Legendary only. Null below rarity 4. */
   capeTint: string | null;
 };
@@ -73,7 +78,9 @@ export const DNA_CHANNELS = [
   "eyeTint",
   "bellyTint",
   "accentTint",
-  "mark",
+  "shadingStyle",
+  "shadingWeight",
+  "shadingTone",
   "capeTint",
 ] as const;
 
@@ -132,20 +139,63 @@ export const EYE_TINTS: readonly TintEntry[] = [
   { id: "tide", name: "Tide", hex: "#c8ff9a", minRarity: 3 },
 ];
 
-/** Always-visible torso marks. No "none" variant exists. */
-export const MARKS: readonly MarkEntry[] = [
-  { id: "chevron", name: "Chevron" },
-  { id: "stripe", name: "Stripe" },
-  { id: "spots", name: "Spot Cluster" },
-  { id: "vine", name: "Vine" },
-  { id: "rune", name: "Rune" },
-  { id: "sigil", name: "Sigil" },
-  { id: "band", name: "Band" },
-  { id: "star", name: "Star" },
-  { id: "moon", name: "Moon" },
-  { id: "bolt", name: "Bolt" },
-  { id: "circuit", name: "Circuit", minRarity: 2 },
-  { id: "crown", name: "Crown", minRarity: 3 },
+/**
+ * Sketchbook shading stroke patterns — how the pencil shading is drawn
+ * inside the character's painted shadow areas. Every token rolls one;
+ * no "none" variant exists (a clean token is just a light weight).
+ */
+export type ShadingStyleEntry = {
+  id: string;
+  name: string;
+  minRarity?: LoopiternRarityId;
+};
+
+export const SHADING_STYLES: readonly ShadingStyleEntry[] = [
+  { id: "hatchH", name: "Horizontal Hatch" },
+  { id: "hatchV", name: "Vertical Hatch" },
+  { id: "hatchDiag", name: "Diagonal Hatch" },
+  { id: "stipple", name: "Stipple" },
+  { id: "scribble", name: "Scribble" },
+  { id: "contour", name: "Contour" },
+  { id: "zigzag", name: "Zigzag" },
+  { id: "wave", name: "Wave" },
+  { id: "dash", name: "Dash" },
+  { id: "brick", name: "Brick" },
+  { id: "cel", name: "Cel Shadow" },
+  { id: "cross", name: "Cross Hatch", minRarity: 1 },
+  { id: "long", name: "Long Stroke", minRarity: 1 },
+  { id: "weave", name: "Weave", minRarity: 2 },
+  { id: "spiral", name: "Spiral", minRarity: 2 },
+  { id: "fine", name: "Fine Line", minRarity: 3 },
+];
+
+/** How heavy the pencil hand is. Scales stroke spacing and opacity. */
+export const SHADING_WEIGHTS = [
+  { id: "light", name: "Light" },
+  { id: "medium", name: "Medium" },
+  { id: "bold", name: "Bold" },
+] as const;
+
+export type ShadingWeightId = (typeof SHADING_WEIGHTS)[number]["id"];
+
+/**
+ * Pencil tone for the shading strokes. The `accent` tone has no fixed hex —
+ * compositors derive it by darkening the token's accent tint, so it always
+ * harmonizes with the body color.
+ */
+export type ShadingToneEntry = {
+  id: string;
+  name: string;
+  /** Undefined for the derived `accent` tone. */
+  hex?: string;
+};
+
+export const SHADING_TONES: readonly ShadingToneEntry[] = [
+  { id: "graphite", name: "Graphite", hex: "#2e3630" },
+  { id: "sepia", name: "Sepia", hex: "#5c4326" },
+  { id: "slate", name: "Slate", hex: "#46586e" },
+  { id: "plum", name: "Plum", hex: "#4a3355" },
+  { id: "accent", name: "Accent Shade" },
 ];
 
 /** Tsunami-wave cape tints. Rolled only at Legendary. */
@@ -160,10 +210,10 @@ export const CAPE_TINTS: readonly TintEntry[] = [
   { id: "gold-banner", name: "Gold Banner", hex: "#e8b52a", minRarity: 4 },
 ];
 
-const TINT_CATALOGS: Record<
-  Exclude<DnaChannel, "mark">,
-  readonly TintEntry[]
-> = {
+/** Channels that pick from a TintEntry catalog (shading tones do not). */
+export type TintChannel = "eyeTint" | "bellyTint" | "accentTint" | "capeTint";
+
+const TINT_CATALOGS: Record<TintChannel, readonly TintEntry[]> = {
   eyeTint: EYE_TINTS,
   bellyTint: BELLY_TINTS,
   accentTint: ACCENT_TINTS,
@@ -179,26 +229,36 @@ function allowed<T extends { minRarity?: LoopiternRarityId }>(
 
 /** Entries a given rarity band may roll, per channel. */
 export function tintsFor(
-  channel: Exclude<DnaChannel, "mark">,
+  channel: TintChannel,
   rarity: LoopiternRarityId,
 ): readonly TintEntry[] {
   return allowed(TINT_CATALOGS[channel], rarity);
 }
 
-/** Marks a given rarity band may roll. Never empty, never "none". */
-export function marksFor(rarity: LoopiternRarityId): readonly MarkEntry[] {
-  return allowed(MARKS, rarity);
+/** Shading styles a given rarity band may roll. Never empty. */
+export function shadingStylesFor(
+  rarity: LoopiternRarityId,
+): readonly ShadingStyleEntry[] {
+  return allowed(SHADING_STYLES, rarity);
+}
+
+export function findShadingStyle(id: string): ShadingStyleEntry | undefined {
+  return SHADING_STYLES.find((s) => s.id === id);
+}
+
+export function findShadingWeight(id: string) {
+  return SHADING_WEIGHTS.find((w) => w.id === id);
+}
+
+export function findShadingTone(id: string): ShadingToneEntry | undefined {
+  return SHADING_TONES.find((t) => t.id === id);
 }
 
 export function findTint(
-  channel: Exclude<DnaChannel, "mark">,
+  channel: TintChannel,
   id: string,
 ): TintEntry | undefined {
   return TINT_CATALOGS[channel].find((e) => e.id === id);
-}
-
-export function findMark(id: string): MarkEntry | undefined {
-  return MARKS.find((m) => m.id === id);
 }
 
 /**
@@ -214,7 +274,9 @@ export function dnaCollisionKey(dna: LoopiternDna): string {
     dna.eyeTint,
     dna.bellyTint,
     dna.accentTint,
-    dna.mark,
+    dna.shadingStyle,
+    dna.shadingWeight,
+    dna.shadingTone,
     dna.capeTint ?? "",
   ].join("|");
 }
@@ -265,7 +327,9 @@ function assertTokenId(tokenId: number): number {
 
 /**
  * Pure. Requires rarity (on-chain after mint, or a UI preview guess).
- * Does not read the chain. `mark` is never "none" — MARKS has no such entry.
+ * Does not read the chain. Every token rolls a full shading triple.
+ * Roll order (each consumes one xorshift32 word): eye, belly, accent,
+ * shading style, shading weight, shading tone, cape (Legendary).
  */
 export function dnaFromTokenId(
   tokenId: number,
@@ -279,7 +343,9 @@ export function dnaFromTokenId(
   const eyeTint = pick(tintsFor("eyeTint", rarity), rng);
   const bellyTint = pick(tintsFor("bellyTint", rarity), rng);
   const accentTint = pick(tintsFor("accentTint", rarity), rng);
-  const mark = pick(marksFor(rarity), rng);
+  const shadingStyle = pick(shadingStylesFor(rarity), rng);
+  const shadingWeight = pick(SHADING_WEIGHTS, rng);
+  const shadingTone = pick(SHADING_TONES, rng);
   const capeTint =
     rarity === 4 ? pick(tintsFor("capeTint", 4), rng) : null;
 
@@ -291,15 +357,14 @@ export function dnaFromTokenId(
     eyeTint: eyeTint.id,
     bellyTint: bellyTint.id,
     accentTint: accentTint.id,
-    mark: mark.id,
+    shadingStyle: shadingStyle.id,
+    shadingWeight: shadingWeight.id,
+    shadingTone: shadingTone.id,
     capeTint: capeTint?.id ?? null,
   };
 }
 
-function tintName(
-  channel: Exclude<DnaChannel, "mark">,
-  id: string,
-): string {
+function tintName(channel: TintChannel, id: string): string {
   return findTint(channel, id)?.name ?? id;
 }
 
@@ -314,7 +379,18 @@ export function attributesFromDna(dna: LoopiternDna): OpenSeaAttribute[] {
     { trait_type: "Eye Tint", value: tintName("eyeTint", dna.eyeTint) },
     { trait_type: "Belly Tint", value: tintName("bellyTint", dna.bellyTint) },
     { trait_type: "Accent", value: tintName("accentTint", dna.accentTint) },
-    { trait_type: "Mark", value: findMark(dna.mark)?.name ?? dna.mark },
+    {
+      trait_type: "Shading Style",
+      value: findShadingStyle(dna.shadingStyle)?.name ?? dna.shadingStyle,
+    },
+    {
+      trait_type: "Shading Weight",
+      value: findShadingWeight(dna.shadingWeight)?.name ?? dna.shadingWeight,
+    },
+    {
+      trait_type: "Shading Tone",
+      value: findShadingTone(dna.shadingTone)?.name ?? dna.shadingTone,
+    },
   ];
   if (dna.capeTint) {
     attrs.push({

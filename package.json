@@ -7,13 +7,9 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
-    "seal-week": "tsx scripts/seal-week.ts",
-    "attest-week": "tsx scripts/attest-week.ts",
-    "settle-week": "tsx scripts/settle-week.ts",
-    "weekly-keeper": "tsx scripts/weekly-keeper.ts"
+    "compose:loopitern": "tsx scripts/compose-loopitern.ts"
   },
   "dependencies": {
-    "@inco/lightning-js": "^1.0.2",
     "@rainbow-me/rainbowkit": "^2.2.11",
     "@tanstack/react-query": "^5.90.2",
     "next": "16.3.0",
@@ -23,6 +19,7 @@
     "wagmi": "^2.19.5"
   },
   "devDependencies": {
+    "@napi-rs/canvas": "^1.0.8",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -30,6 +27,7 @@
     "babel-plugin-react-compiler": "1.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
+    "sharp": "^0.35.4",
     "tailwindcss": "^4",
     "tsx": "^4.23.12",
     "typescript": "^5"

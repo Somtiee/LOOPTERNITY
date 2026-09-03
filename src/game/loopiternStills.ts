@@ -46,3 +46,33 @@ export function stillRelativeFsPath(
   }
   return `public/loopiterns/generated/${rarity}/${id}.${LOOPITERN_STILL_EXT}`;
 }
+
+/**
+ * On-demand still route (Prompt K) — composes server-side on first request,
+ * then serves from the `public/` cache. Same PNG as `stillPath`, but it works
+ * even on hosts where the runtime cannot write into `public/`.
+ */
+export function stillApiPath(
+  tokenId: number,
+  rarity: LoopiternRarityId,
+): string {
+  const id = assertTokenId(tokenId);
+  if (!isLoopiternRarityId(rarity)) {
+    throw new Error(`Invalid LOOPITERN rarity ${rarity}`);
+  }
+  return `/api/loopitern/${id}/${rarity}/still`;
+}
+
+/** Native compositor resolution (the recolored bases are 1024). */
+export const LOOPITERN_STILL_HIRES_SIZE = 1024;
+
+/**
+ * Full-resolution still (Prompt J5) — same route, `?size=1024`. Composed on
+ * demand at native base resolution and never written to the static cache.
+ */
+export function stillHiResApiPath(
+  tokenId: number,
+  rarity: LoopiternRarityId,
+): string {
+  return `${stillApiPath(tokenId, rarity)}?size=${LOOPITERN_STILL_HIRES_SIZE}`;
+}

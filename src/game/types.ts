@@ -1,6 +1,6 @@
 export type ThemeId = "volcanic" | "planetary" | "antarctica";
 export type DifficultyId = "easy" | "medium" | "hard";
-export type GameMode = "normal" | "p2e";
+export type GameMode = "normal" | "p2m" | "p2e";
 export type GamePhase = "playing" | "gameover";
 export type CharacterId = "ash" | "nova" | "nord";
 
@@ -139,4 +139,10 @@ export type HudSnapshot = {
   sinkStage: number;
   nearMisses: number;
   hitsTaken: number;
+  /** LOOPITERN Freeze: charge left and not currently frozen. */
+  freezeReady: boolean;
+  /** True while danger / enemy time is paused. */
+  freezeActive: boolean;
+  /** LOOPITERN Tsunami (Legendary): charge left. */
+  tsunamiReady: boolean;
 };

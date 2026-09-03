@@ -19,9 +19,9 @@ export function CharacterSelect({
   return (
     <section className="mt-7">
       <h2 className="mb-1 font-[family-name:var(--font-display)] text-xs tracking-[0.28em] text-white/70">
-        RUNNER
+        CHARACTERS
       </h2>
-      <p className="mb-3 text-[11px] text-white/35">Looks only — same climb.</p>
+      <p className="mb-3 text-[11px] text-white/35">Looks only.</p>
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
         {CHARACTER_IDS.map((id) => {
           const def = getCharacter(id);
@@ -43,9 +43,6 @@ export function CharacterSelect({
               <CharacterPortrait id={id} accent={accent} />
               <span className="mt-1 font-[family-name:var(--font-display)] text-[10px] tracking-[0.16em] text-white sm:text-[11px]">
                 {def.name.toUpperCase()}
-              </span>
-              <span className="mt-0.5 px-0.5 text-center text-[10px] leading-snug text-white/40">
-                {def.blurb}
               </span>
             </button>
           );

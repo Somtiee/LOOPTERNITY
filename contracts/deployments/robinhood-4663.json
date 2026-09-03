@@ -1,0 +1,26 @@
+{
+  "network": "robinhood",
+  "chainId": 4663,
+  "contract": "Loopiterns",
+  "address": "0x7016CfF42264C8D499a32bBe2b5A039bfd0Ed19f",
+  "mintPriceWei": "200000000000000",
+  "mintPriceNote": "0.0002 ETH per mint (~$0.50 target). Owner can adjust via setMintPrice.",
+  "deployer": "0xED638d2de9E7b6E8D06514A161bb2cEFf28bfCDd",
+  "deployTxHash": "0x865c1df8e634023117d484c25ded458cd26dd34464a50c1c90c570582b51f06c",
+  "deployBlock": 51832171,
+  "deployGasUsed": "2180758",
+  "rpc": "https://rpc.mainnet.chain.robinhood.com",
+  "explorer": "https://robinhoodchain.blockscout.com",
+  "status": "DEPLOYED",
+  "statusNote": "Broadcast 2026-09-01 via forge script --broadcast --slow. Verified on-chain: name=LOOPITERNS, owner=treasury deployer, totalSupply=0, 17.6KB runtime code. baseURI deployed EMPTY.",
+  "owner": "0xED638d2de9E7b6E8D06514A161bb2cEFf28bfCDd (treasury wallet — also the deployer)",
+  "postDeployChecklist": [
+    "DONE: forge build + forge test (18/18 incl. withdraw tests).",
+    "DONE: broadcast on chain 4663, tx 0x865c1df8...b51f06c, block 51832171, status success.",
+    "DONE: address recorded here and in .env.local + docs/vercel-env.txt as NEXT_PUBLIC_LOOPITERNS_ADDRESS.",
+    "TODO: verify source on https://robinhoodchain.blockscout.com — the API is Cloudflare-gated so forge verify-contract cannot reach it programmatically; use the explorer's web UI (Contract > Verify & Publish, solc 0.8.29, optimizer on) in a browser.",
+    "TODO: when Prompt K's metadata route exists, call setBaseURI (owner = treasury).",
+    "TODO (optional): set setContractURI for marketplace listing metadata.",
+    "Treasury sweep: withdraw(0xED638d2de9E7b6E8D06514A161bb2cEFf28bfCDd) onlyOwner, forwards full balance via low-level call, reverts WithdrawFailed on rejection, emits Withdrawn(to, amount)."
+  ]
+}

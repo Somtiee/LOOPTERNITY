@@ -79,13 +79,17 @@ export function drawLoopitern(
   ctx.ellipse(0, -22, rarity >= 3 ? 13.5 : 12.2, 16, 0, 0, Math.PI * 2);
   ctx.fill();
 
+  // Belly
   ctx.fillStyle = palette.belly;
   ctx.beginPath();
   ctx.ellipse(1.5, -18, 7.2, 9.5, 0.08, 0, Math.PI * 2);
   ctx.fill();
 
-  // DNA mark — always visible when a DNA palette is equipped
-  if (palette.mark) drawDnaMark(ctx, palette.mark, palette.markFill);
+  // DNA sketchbook shading — light pencil strokes inside the shadow side
+  // of the body, under the arms/head (J4 schema v4).
+  if (palette.shading) {
+    drawSketchShading(ctx, palette.shading);
+  }
 
   // Arms
   ctx.fillStyle = palette.fill;
@@ -126,148 +130,180 @@ export function drawLoopitern(
   ctx.arc(5.1, headY - 1.8, 0.55, 0, Math.PI * 2);
   ctx.fill();
 
+  // One light stroke under the chin — the head's share of the shading.
+  if (palette.shading) {
+    ctx.save();
+    ctx.globalAlpha = SHADING_WEIGHT_ALPHA[palette.shading.weight] ?? 0.24;
+    ctx.strokeStyle = palette.shading.toneHex;
+    ctx.lineWidth = 0.6;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(-1.5, headY + headR - 1.5);
+    ctx.lineTo(4.5, headY + headR - 0.5);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   ctx.restore();
 }
 
+/** Stroke opacity per shading weight. */
+const SHADING_WEIGHT_ALPHA: Record<string, number> = {
+  light: 0.16,
+  medium: 0.24,
+  bold: 0.34,
+};
+
 /**
- * DNA marks, drawn on the belly (belly tint background) in the solid accent
- * color with an ink keyline. Centered on the belly ellipse (1.5, -18).
+ * DNA sketchbook shading on the rig (schema v4). A few light strokes
+ * clipped to the shadow side of the torso — a miniature of the stills'
+ * pencil hatching, matched to the same style/weight/tone DNA. Drawn
+ * between belly and arms so it reads as shading, not a decal.
  */
-function drawDnaMark(
+function drawSketchShading(
   ctx: CanvasRenderingContext2D,
-  mark: string,
-  fill: string,
+  shading: NonNullable<LoopiternRigPalette["shading"]>,
 ) {
+  const alpha = SHADING_WEIGHT_ALPHA[shading.weight] ?? 0.24;
   ctx.save();
-  ctx.translate(1.5, -18);
-  ctx.fillStyle = fill;
-  ctx.strokeStyle = LOOPITERN_INK;
-  ctx.lineWidth = 0.9;
+  // Clip to the lower-right (shadow side) of the torso so strokes never
+  // spill onto the belly patch or outside the body.
+  ctx.beginPath();
+  ctx.ellipse(1.5, -22, 12.2, 15.5, 0, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.beginPath();
+  ctx.rect(-2, -22, 16, 24);
+  ctx.clip();
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = shading.toneHex;
+  ctx.fillStyle = shading.toneHex;
+  ctx.lineWidth = shading.weight === "bold" ? 0.9 : 0.7;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
-  switch (mark) {
-    case "stripe":
-      ctx.beginPath();
-      ctx.roundRect(-4.6, -6.5, 2.6, 13, 1.2);
-      ctx.roundRect(2.0, -6.5, 2.6, 13, 1.2);
-      ctx.fill();
-      ctx.stroke();
+  switch (shading.style) {
+    case "hatchH":
+      strokeLines(ctx, 5, (i) => [-11 + i * 0.6, -12 + i * 4.5, 10, -8 + i * 4.5]);
       break;
-    case "spots":
-      ctx.beginPath();
-      ctx.arc(-2.8, -3.2, 2.0, 0, Math.PI * 2);
-      ctx.arc(2.6, -4.4, 1.6, 0, Math.PI * 2);
-      ctx.arc(-0.4, 3.0, 1.7, 0, Math.PI * 2);
-      ctx.fill();
+    case "hatchV":
+      strokeLines(ctx, 5, (i) => [-6 + i * 3.6, -34, -6 + i * 3.6, -6]);
       break;
-    case "vine":
-      ctx.beginPath();
-      ctx.moveTo(-3.4, 6);
-      ctx.quadraticCurveTo(4.4, 0, -2.2, -6.4);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.ellipse(2.2, 1.2, 2.0, 1.1, -0.7, 0, Math.PI * 2);
-      ctx.fill();
+    case "cross":
+      strokeLines(ctx, 4, (i) => [-9 + i * 3.5, -32, -3 + i * 3.5, -8]);
+      strokeLines(ctx, 3, (i) => [8 - i * 3.5, -32, 2 - i * 3.5, -8]);
       break;
-    case "rune":
+    case "stipple": {
+      const dots = [
+        [-6, -28], [-3, -25], [-7, -21], [-1, -29], [1, -24], [-4, -17],
+        [2, -19], [4, -27], [-8, -13], [0, -12], [5, -22], [3, -14],
+        [6, -16], [-2, -9], [5, -10], [7, -12],
+      ];
       ctx.beginPath();
-      ctx.moveTo(-3.4, -6);
-      ctx.lineTo(2.6, -6);
-      ctx.lineTo(-1.6, 0);
-      ctx.lineTo(3.4, 0);
-      ctx.lineTo(-2.6, 6);
-      ctx.stroke();
-      break;
-    case "sigil":
-      ctx.beginPath();
-      ctx.arc(0, 0, 4.4, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.arc(0, 0, 1.6, 0, Math.PI * 2);
+      for (const [x, y] of dots) {
+        ctx.moveTo(x, y);
+        ctx.arc(x, y, 0.5, 0, Math.PI * 2);
+      }
       ctx.fill();
       break;
-    case "band":
+    }
+    case "scribble":
       ctx.beginPath();
-      ctx.roundRect(-5.6, -1.8, 11.2, 3.6, 1.8);
-      ctx.fill();
+      ctx.moveTo(-9, -30);
+      ctx.bezierCurveTo(-2, -34, 4, -26, -3, -22);
+      ctx.bezierCurveTo(2, -20, 7, -25, 2, -18);
+      ctx.bezierCurveTo(-4, -12, 6, -14, 4, -9);
       ctx.stroke();
       break;
-    case "star":
+    case "contour":
+      for (let i = 0; i < 3; i += 1) {
+        ctx.beginPath();
+        ctx.arc(-13 + i * 1.2, -20 + i * 0.5, 12 + i * 2.6, -0.9, 0.7);
+        ctx.stroke();
+      }
+      break;
+    case "zigzag":
       ctx.beginPath();
-      ctx.moveTo(0, -6.2);
-      ctx.lineTo(1.5, -1.5);
-      ctx.lineTo(6.2, 0);
-      ctx.lineTo(1.5, 1.5);
-      ctx.lineTo(0, 6.2);
-      ctx.lineTo(-1.5, 1.5);
-      ctx.lineTo(-6.2, 0);
-      ctx.lineTo(-1.5, -1.5);
+      ctx.moveTo(-9, -30);
+      for (let i = 0; i < 6; i += 1) {
+        ctx.lineTo(-9 + (i + 1) * 2.8, i % 2 === 0 ? -25 : -31);
+      }
+      ctx.moveTo(-9, -20);
+      for (let i = 0; i < 6; i += 1) {
+        ctx.lineTo(-9 + (i + 1) * 2.8, i % 2 === 0 ? -15 : -21);
+      }
+      ctx.stroke();
+      break;
+    case "wave":
+      ctx.beginPath();
+      ctx.moveTo(-10, -26);
+      ctx.quadraticCurveTo(-5, -30, 0, -26);
+      ctx.quadraticCurveTo(5, -22, 10, -26);
+      ctx.moveTo(-10, -17);
+      ctx.quadraticCurveTo(-5, -21, 0, -17);
+      ctx.quadraticCurveTo(5, -13, 10, -17);
+      ctx.stroke();
+      break;
+    case "dash":
+      ctx.setLineDash([2.4, 2]);
+      strokeLines(ctx, 4, (i) => [-10, -28 + i * 5.5, 9, -25 + i * 5.5]);
+      break;
+    case "brick":
+      ctx.setLineDash([3, 2.4]);
+      strokeLines(ctx, 3, (i) => [-10, -26 + i * 6.5, 9, -26 + i * 6.5]);
+      ctx.setLineDash([1.6, 2.8]);
+      strokeLines(ctx, 3, (i) => [-5 + i * 4.5, -32, -5 + i * 4.5, -10]);
+      break;
+    case "cel":
+      // Flat cel shadow — one solid darker crescent, no strokes.
+      ctx.globalAlpha = alpha * 1.15;
+      ctx.beginPath();
+      ctx.moveTo(3, -35);
+      ctx.quadraticCurveTo(13, -22, 6, -8);
+      ctx.quadraticCurveTo(1, -16, 3, -35);
       ctx.closePath();
       ctx.fill();
       break;
-    case "moon":
-      ctx.beginPath();
-      ctx.arc(0, 0, 6.0, Math.PI * 0.38, Math.PI * 1.62, false);
-      ctx.arc(2.6, 0, 4.6, Math.PI * 1.5, Math.PI * 0.5, true);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
+    case "weave":
+      strokeLines(ctx, 4, (i) => [-8 + i * 4, -32, -8 + i * 4, -24]);
+      strokeLines(ctx, 3, (i) => [-6 + i * 4.5, -21, -6 + i * 4.5, -12]);
+      strokeLines(ctx, 2, (i) => [-9, -30 + i * 6.5, 5, -30 + i * 6.5]);
       break;
-    case "bolt":
+    case "spiral":
       ctx.beginPath();
-      ctx.moveTo(-2.0, -6.6);
-      ctx.lineTo(4.4, -6.6);
-      ctx.lineTo(0.4, -1.2);
-      ctx.lineTo(3.4, -1.2);
-      ctx.lineTo(-2.8, 6.6);
-      ctx.lineTo(-0.4, 0.6);
-      ctx.lineTo(-3.6, 0.6);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-      break;
-    case "circuit":
-      ctx.beginPath();
-      ctx.moveTo(-5, -4.6);
-      ctx.lineTo(-0.8, -4.6);
-      ctx.lineTo(-0.8, 0);
-      ctx.lineTo(3.6, 0);
-      ctx.lineTo(3.6, 4.6);
-      ctx.lineTo(-5, 4.6);
+      ctx.arc(0, -21, 6.5, 0.4, Math.PI * 1.75);
       ctx.stroke();
       ctx.beginPath();
-      ctx.arc(3.6, -4.6, 1.2, 0, Math.PI * 2);
-      ctx.fill();
-      break;
-    case "crown":
-      ctx.beginPath();
-      ctx.moveTo(-4.6, 4.4);
-      ctx.lineTo(-4.6, -2.6);
-      ctx.lineTo(-2.2, 0.4);
-      ctx.lineTo(0, -4.8);
-      ctx.lineTo(2.2, 0.4);
-      ctx.lineTo(4.6, -2.6);
-      ctx.lineTo(4.6, 4.4);
-      ctx.closePath();
-      ctx.fill();
+      ctx.arc(1, -20, 3.2, Math.PI * 1.1, Math.PI * 2.9);
       ctx.stroke();
       break;
-    case "chevron":
+    case "long":
+      strokeLines(ctx, 3, (i) => [-10, -30 + i * 7, 10, -26 + i * 7]);
+      break;
+    case "fine":
+      ctx.lineWidth = 0.45;
+      strokeLines(ctx, 6, (i) => [-9 + i * 2.6, -32, -6 + i * 2.6, -8]);
+      break;
+    case "hatchDiag":
     default:
-      ctx.beginPath();
-      ctx.moveTo(-4.6, -4.2);
-      ctx.lineTo(0, -0.6);
-      ctx.lineTo(4.6, -4.2);
-      ctx.lineTo(4.6, -0.4);
-      ctx.lineTo(0, 3.2);
-      ctx.lineTo(-4.6, -0.4);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
+      strokeLines(ctx, 5, (i) => [-9 + i * 3.5, -32, -3 + i * 3.5, -8]);
       break;
   }
   ctx.restore();
+}
+
+/** Run `line` i times and stroke once per call. */
+function strokeLines(
+  ctx: CanvasRenderingContext2D,
+  count: number,
+  line: (i: number) => [number, number, number, number],
+) {
+  for (let i = 0; i < count; i += 1) {
+    const [x1, y1, x2, y2] = line(i);
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
 }
 
 function roundedCapsule(

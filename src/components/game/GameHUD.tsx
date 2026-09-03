@@ -79,6 +79,19 @@ function mintButtonLabel(
   return "MINT LOOPITERN";
 }
 
+/** Live remaining at a rarity, e.g. "1,497 left" — falls back to the cap. */
+function formatMintRemaining(
+  remainingByRarity: number[] | undefined,
+  rarityId: number,
+): string {
+  const rarity = RARITIES[rarityId];
+  const n = remainingByRarity?.[rarityId];
+  if (n === undefined || !Number.isFinite(n)) {
+    return `${(rarity?.supply ?? 0).toLocaleString()} max`;
+  }
+  return `${Math.max(0, n).toLocaleString()} left`;
+}
+
 function P2mMintBlock({ timeSurvived }: { timeSurvived: number }) {
   const { hasWallet, onRobinhood } = useWalletSession();
   const {
@@ -95,6 +108,7 @@ function P2mMintBlock({ timeSurvived }: { timeSurvived: number }) {
     tokenId,
     explorerTxUrl,
     mint,
+    refetchInventory,
   } = useMintLoopitern(timeSurvived);
   const next = nextRarityGate(timeSurvived);
   const dropped = Boolean(
@@ -111,10 +125,14 @@ function P2mMintBlock({ timeSurvived }: { timeSurvived: number }) {
   }, [status]);
 
   const busy = status === "confirm" || status === "pending";
+  const collectionSoldOut = Boolean(
+    remainingByRarity?.every((n) => n === 0),
+  );
 
   let disableReason: string | null = null;
   if (!configured) {
-    disableReason = "Mint contract not configured.";
+    // Not an error — the app degrades honestly when the address is unset.
+    disableReason = "Minting not live yet — the LOOPITERNS contract isn't deployed. Preview art only.";
   } else if (loading) {
     disableReason = "Checking supply…";
   } else if (remainingByRarity === undefined) {
@@ -122,7 +140,9 @@ function P2mMintBlock({ timeSurvived }: { timeSurvived: number }) {
   } else if (!unlocked) {
     disableReason = `Survive ${formatRarityGate(RARITIES[0].minSeconds)} (Common) to unlock a mint.`;
   } else if (!willMint) {
-    disableReason = "Sold out for this run.";
+    disableReason = collectionSoldOut
+      ? "Collection sold out — all 10,000 LOOPITERNS minted."
+      : "Every rarity you unlocked is sold out for this run.";
   } else if (paused) {
     disableReason = "Minting is paused.";
   } else if (mintPrice === undefined) {
@@ -130,9 +150,9 @@ function P2mMintBlock({ timeSurvived }: { timeSurvived: number }) {
   } else if (!hasWallet) {
     disableReason = "Connect a wallet to mint.";
   } else if (!onRobinhood) {
-    disableReason = `WRONG NETWORK · ${CHAIN_SWITCH_LABEL}`;
+    disableReason = `Wrong network — tap the button above to switch to ${CHAIN_SWITCH_LABEL}.`;
   } else if (ownedCount >= MAX_LOOPITERNS_PER_WALLET) {
-    disableReason = `Max ${MAX_LOOPITERNS_PER_WALLET} LOOPITERNS per wallet.`;
+    disableReason = `Wallet full — max ${MAX_LOOPITERNS_PER_WALLET} LOOPITERNS per wallet (minting only; secondary buys are not capped).`;
   }
 
   const mintEnabled = disableReason === null && !busy && status !== "success";
@@ -157,12 +177,18 @@ function P2mMintBlock({ timeSurvived }: { timeSurvived: number }) {
         )}
         <div className="min-w-0 flex-1">
           {unlocked ? (
-            <p
-              className="font-[family-name:var(--font-display)] text-xs tracking-[0.16em]"
-              style={{ color: unlocked.accent }}
-            >
-              {unlocked.name.toUpperCase()}
-            </p>
+            willMint ? (
+              <p
+                className="font-[family-name:var(--font-display)] text-xs tracking-[0.16em]"
+                style={{ color: unlocked.accent }}
+              >
+                {unlocked.name.toUpperCase()}
+              </p>
+            ) : (
+              <p className="font-[family-name:var(--font-display)] text-xs tracking-[0.16em] text-white/40">
+                {unlocked.name.toUpperCase()} · SOLD OUT
+              </p>
+            )
           ) : (
             <p className="font-[family-name:var(--font-display)] text-xs tracking-[0.16em] text-white/70">
               NO MINT YET
@@ -173,10 +199,12 @@ function P2mMintBlock({ timeSurvived }: { timeSurvived: number }) {
       <p className="mt-1.5 text-[11px] leading-relaxed text-white/55">
         {unlocked
           ? dropped && willMint
-            ? `Will mint ${willMint.name} (${unlocked.name} sold out, dropping to ${willMint.name}).`
+            ? `${unlocked.name} is sold out — this mint drops to ${willMint.name}.`
             : willMint
-              ? `Highest unlocked: ${unlocked.name} · ${formatRarityGate(unlocked.minSeconds)} · ${unlocked.supply.toLocaleString()} max at this rarity.`
-              : "Every unlocked rarity is sold out."
+              ? `Highest unlocked: ${unlocked.name} · ${formatRarityGate(unlocked.minSeconds)} · ${formatMintRemaining(remainingByRarity, unlocked.id)} left at this rarity.`
+              : collectionSoldOut
+                ? "All 10,000 LOOPITERNS are minted."
+                : "Every rarity you unlocked is sold out."
           : next
             ? `Common unlocks at ${formatRarityGate(next.minSeconds)}. Medium climb for every P2M run.`
             : "Survive to unlock a mint."}
@@ -247,9 +275,25 @@ function P2mMintBlock({ timeSurvived }: { timeSurvived: number }) {
         </p>
       ) : null}
       {disableReason && status === "idle" ? (
-        <p className="mt-2 text-center text-[10px] leading-relaxed text-white/45">
-          {disableReason}
-        </p>
+        remainingByRarity === undefined && !loading ? (
+          <p className="mt-2 text-center text-[10px] leading-relaxed text-white/45">
+            {disableReason}{" "}
+            <button
+              type="button"
+              onClick={() => {
+                audio.sfx("click");
+                void refetchInventory();
+              }}
+              className="pointer-events-auto underline decoration-white/40 underline-offset-2 hover:text-white"
+            >
+              Retry
+            </button>
+          </p>
+        ) : (
+          <p className="mt-2 text-center text-[10px] leading-relaxed text-white/45">
+            {disableReason}
+          </p>
+        )
       ) : null}
     </div>
   );
@@ -460,9 +504,9 @@ export function GameHUD({
             <button
               type="button"
               onClick={onPauseToggle}
-              className="mt-6 min-h-12 w-full rounded-xl px-4 py-3 font-[family-name:var(--font-display)] text-sm tracking-[0.2em] text-[#0a0608] transition hover:brightness-110"
+              className="mt-6 min-h-12 w-full rounded-xl px-4 py-3 font-[family-name:var(--font-display)] text-sm tracking-[0.2em] text-[#05140a] transition hover:brightness-110"
               style={{
-                background: `linear-gradient(90deg, ${accent}, #ffe08a)`,
+                background: "linear-gradient(90deg, #00C805, #7CFF7C)",
               }}
             >
               RESUME
@@ -470,7 +514,7 @@ export function GameHUD({
             <button
               type="button"
               onClick={onRestart}
-              className="mt-2 min-h-12 w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 font-[family-name:var(--font-display)] text-xs tracking-[0.2em] text-white/80 transition hover:bg-white/10"
+              className="mt-2 min-h-12 w-full rounded-xl border border-[#00C805]/40 bg-[#00C805]/10 px-4 py-3 font-[family-name:var(--font-display)] text-xs tracking-[0.2em] text-[#7CFF7C] transition hover:bg-[#00C805]/20"
             >
               NEW GAME
             </button>
@@ -519,9 +563,9 @@ export function GameHUD({
             <button
               type="button"
               onClick={onRestart}
-              className="mt-6 min-h-12 w-full rounded-xl px-4 py-3 font-[family-name:var(--font-display)] text-sm tracking-[0.2em] text-[#0a0608] transition hover:brightness-110"
+              className="mt-6 min-h-12 w-full rounded-xl px-4 py-3 font-[family-name:var(--font-display)] text-sm tracking-[0.2em] text-[#05140a] transition hover:brightness-110"
               style={{
-                background: `linear-gradient(90deg, ${accent}, #ffe08a)`,
+                background: "linear-gradient(90deg, #00C805, #7CFF7C)",
               }}
             >
               RUN AGAIN
@@ -529,7 +573,7 @@ export function GameHUD({
             <button
               type="button"
               onClick={onMenu}
-              className="mt-2 min-h-12 w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 font-[family-name:var(--font-display)] text-xs tracking-[0.2em] text-white/80 transition hover:bg-white/10"
+              className="mt-2 min-h-12 w-full rounded-xl border border-[#00C805]/40 bg-[#00C805]/10 px-4 py-3 font-[family-name:var(--font-display)] text-xs tracking-[0.2em] text-[#7CFF7C] transition hover:bg-[#00C805]/20"
             >
               MAIN MENU
             </button>

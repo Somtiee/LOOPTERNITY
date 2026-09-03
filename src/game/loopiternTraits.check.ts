@@ -1,5 +1,6 @@
 /**
- * Cheap deterministic checks for the J4 DNA schema. Run:
+ * Cheap deterministic checks for the J4 DNA schema (v4 — sketchbook
+ * shading). Run:
  *   npx tsx src/game/loopiternTraits.check.ts
  */
 import {
@@ -7,9 +8,14 @@ import {
   dnaCollisionKey,
   dnaFromTokenId,
   DNA_CHANNELS,
-  findMark,
+  findShadingStyle,
+  findShadingTone,
+  findShadingWeight,
   LOOPITERN_TRAIT_SCHEMA_VERSION,
-  marksFor,
+  shadingStylesFor,
+  SHADING_STYLES,
+  SHADING_TONES,
+  SHADING_WEIGHTS,
   traitSeed32,
   tintsFor,
 } from "./loopiternTraits";
@@ -30,7 +36,7 @@ function channelDiffCount(
 }
 
 function main() {
-  assert(LOOPITERN_TRAIT_SCHEMA_VERSION === 2, "schemaVersion");
+  assert(LOOPITERN_TRAIT_SCHEMA_VERSION === 4, "schemaVersion");
 
   const a = dnaFromTokenId(12, 0);
   const b = dnaFromTokenId(12, 0);
@@ -39,13 +45,11 @@ function main() {
   const c = dnaFromTokenId(12, 1);
   assert(a.base !== c.base, "same id different rarity changes DNA");
   assert(a.rarity === 0 && c.rarity === 1, "rarity stored");
-  assert(a.tokenId === 12 && a.schemaVersion === 2, "serial + schema");
+  assert(a.tokenId === 12 && a.schemaVersion === 4, "serial + schema");
   assert(a.capeTint === null, "Common has no cape tint");
   assert(dnaFromTokenId(1, 4).capeTint !== null, "Legendary always rolls a cape tint");
 
-  // Catalogs: non-empty for every rarity band, mark never "none".
-  assert(!marksFor(0).some((m) => m.id === "none"), 'no "none" mark exists');
-  assert(marksFor(0).length >= 8, "at least 8 marks at Common");
+  // Catalogs: non-empty for every rarity band.
   for (const r of RARITIES) {
     for (const channel of TINT_CHANNELS) {
       if (channel === "capeTint" && r < 4) {
@@ -54,21 +58,33 @@ function main() {
       }
       assert(tintsFor(channel, r).length > 0, `${channel} non-empty at rarity ${r}`);
     }
-    assert(marksFor(r).length > 0, `marks non-empty at rarity ${r}`);
+    assert(shadingStylesFor(r).length > 0, `shading styles non-empty at rarity ${r}`);
   }
+  assert(SHADING_WEIGHTS.length >= 3, "at least 3 shading weights");
+  assert(SHADING_TONES.length >= 4, "at least 4 shading tones");
 
-  // 100-token sample per rarity: mark never "none", always a real catalog id.
+  // Every token rolls a full, valid shading triple.
   for (const r of RARITIES) {
     for (let id = 1; id <= 100; id += 1) {
       const d = dnaFromTokenId(id, r);
-      assert(d.mark !== "none", `mark must never be "none" (${id}/${r})`);
-      assert(findMark(d.mark) != null, `mark must be a catalog id (${d.mark})`);
+      assert(
+        findShadingStyle(d.shadingStyle) != null,
+        `shading style must be a catalog id (${d.shadingStyle})`,
+      );
+      assert(
+        findShadingWeight(d.shadingWeight) != null,
+        `shading weight must be a catalog id (${d.shadingWeight})`,
+      );
+      assert(
+        findShadingTone(d.shadingTone) != null,
+        `shading tone must be a catalog id (${d.shadingTone})`,
+      );
     }
   }
 
   // Two random same-rarity DNAs must differ in at least 2 channels (prompt
   // J4), drawn from a 100-token sample per rarity with a fixed seed. The
-  // full pair scan adds an aggregate bound: rare 4-of-5 channel collisions
+  // full pair scan adds an aggregate bound: rare 6-of-7 channel collisions
   // are legal but must stay well under 1% of pairs.
   const rng = { s: traitSeed32(1, 0) };
   const nextRng = () => {
@@ -104,9 +120,8 @@ function main() {
     weakPairs / totalPairs < 0.006,
     `too many pairs differing in <2 channels: ${weakPairs}/${totalPairs}`,
   );
-  // Full 5-channel collisions are birthday-unavoidable with finite catalogs
-  // (~1/6k–17k combos per band ⇒ ~2 expected across 24,750 pairs). Bound the
-  // rate, not the raw count: still well under 0.1% of pairs.
+  // Full 7-channel collisions are birthday-unavoidable with finite catalogs.
+  // Bound the rate, not the raw count.
   assert(
     identicalPairs / totalPairs < 0.001,
     `too many visually identical same-rarity pairs: ${identicalPairs}/${totalPairs}`,
@@ -117,25 +132,30 @@ function main() {
   const collision = new Set<string>();
   for (let id = 1; id <= 200; id += 1) {
     const d = dnaFromTokenId(id, 0);
-    keys.add([d.eyeTint, d.bellyTint, d.accentTint, d.mark].join("|"));
+    keys.add(
+      [d.eyeTint, d.bellyTint, d.accentTint, d.shadingStyle, d.shadingWeight, d.shadingTone].join("|"),
+    );
     collision.add(dnaCollisionKey(d));
   }
   assert(keys.size >= 150, `expected visual variety among Commons, got ${keys.size}`);
   assert(collision.size === 200, "tokenId in DNA keeps Commons unique");
 
-  // OpenSea attributes carry the new channels; serial is plain metadata.
+  // OpenSea attributes carry the shading channels; serial is plain metadata.
   const attrs = attributesFromDna(a);
   assert(attrs.some((x) => x.trait_type === "Rarity" && x.value === "Common"), "OpenSea rarity");
   assert(attrs.some((x) => x.trait_type === "Serial" && x.value === "12"), "OpenSea serial");
   assert(!attrs.some((x) => x.trait_type === "Cape Tint"), "no cape attribute below Legendary");
-  for (const trait of ["Eye Tint", "Belly Tint", "Accent", "Mark"]) {
+  for (const trait of ["Eye Tint", "Belly Tint", "Accent", "Shading Style", "Shading Weight", "Shading Tone"]) {
     assert(attrs.some((x) => x.trait_type === trait), `OpenSea ${trait}`);
   }
+  assert(!attrs.some((x) => x.trait_type === "Mark"), "no Mark attribute in v4");
+  assert(!attrs.some((x) => x.trait_type === "Tattoo"), "no Tattoo attribute in v4");
   const legendAttrs = attributesFromDna(dnaFromTokenId(1, 4));
   assert(legendAttrs.some((x) => x.trait_type === "Cape Tint"), "OpenSea cape tint at Legendary");
 
   assert(traitSeed32(1, 0) !== traitSeed32(2, 0), "tokenId in seed");
   assert(traitSeed32(1, 0) !== traitSeed32(1, 1), "rarity in seed");
+  void SHADING_STYLES;
 
   for (const r of RARITIES) {
     const d = dnaFromTokenId(7, r);

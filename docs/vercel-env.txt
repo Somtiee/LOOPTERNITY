@@ -1,20 +1,17 @@
 # Vercel (production app)
 # Copy these into the Vercel project (Production + Preview). Never add PRIVATE_KEY.
 
-NEXT_PUBLIC_CHAIN=mainnet
-NEXT_PUBLIC_BASE_RPC_URL=https://mainnet.base.org
-NEXT_PUBLIC_LOOPTERNITY_CONTRACT_ADDRESS=0x66b549F570Fa63e3109B85FD15678c175F1a02c9
-NEXT_PUBLIC_VAULT_DEPLOY_BLOCK=49966576
-NEXT_PUBLIC_P2E_ENTRY_FEE_USD=0.05
-NEXT_PUBLIC_P2E_TREASURY_ADDRESS=0xEacA26c65bd43803CB07319D5055bB7CF8DEC00c
 NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=
 
-# Do NOT set NEXT_PUBLIC_P2E_ENTRY_FEE_ETH on Vercel.
-# That field is an exact ETH amount. 0.05 means 0.05 ETH (~$90), not $0.05.
-# Leave it unset. USD→ETH uses NEXT_PUBLIC_P2E_ENTRY_FEE_USD; the vault
-# charges entryFeeWei (~$0.05).
+# Optional. Defaults to https://rpc.mainnet.chain.robinhood.com (chain 4663).
+# NEXT_PUBLIC_RPC_URL=https://rpc.mainnet.chain.robinhood.com
 
-# Paste your Reown project id into NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID (same as local .env.local).
+# LOOPITERNS ERC-721 on Robinhood (4663). Empty / zero = mint disabled.
+NEXT_PUBLIC_LOOPITERNS_ADDRESS=0x7016CfF42264C8D499a32bBe2b5A039bfd0Ed19f
+# Optional fallback if mintPrice() cannot be read. Wei only, no USD.
+# NEXT_PUBLIC_LOOPITERNS_MINT_PRICE_WEI=
+
+# Paste your Reown project id into NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID.
 # Needed on mobile so WalletConnect stays connected after refresh.
 
 # Normal-mode personal bests (wallet-synced across phone + desktop):
@@ -23,8 +20,8 @@ NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=
 #   KV_REST_API_TOKEN
 # Without KV, Normal PBs stay on that browser only.
 
-# GitHub Actions keeper (Sunday 00:05 UTC)
-# Repo → Settings → Secrets and variables → Actions:
-#   KEEPER_PRIVATE_KEY = contracts/.env PRIVATE_KEY (owner/keeper). Never commit it.
-#   BASE_MAINNET_RPC_URL = optional dedicated Base RPC (else public mainnet.base.org)
-# Workflow: .github/workflows/weekly-p2e.yml
+# ---------------------------------------------------------------
+# NEVER on Vercel:
+#   PRIVATE_KEY, TREASURY private key, Foundry deploy keys.
+#   Those belong only in contracts/.env (gitignored) on this machine.
+# ---------------------------------------------------------------

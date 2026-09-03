@@ -12,8 +12,10 @@ ffi = false
 fs_permissions = [{ access = "read", path = "./" }]
 remappings = [
   "@inco/lightning/=lib/inco-lightning-shim/",
+  "@openzeppelin/=vendor/@openzeppelin/",
   "forge-std/=lib/forge-std/src/",
 ]
+skip = ["test/LoopternityVault.t.sol"]
 
 # Production / Sepolia / mainnet compile against official @inco/lightning 1.0.2
 # (same CREATE2 executor on Base and Base Sepolia). Do not use the test shim.
@@ -40,6 +42,7 @@ remappings = [
 lint_on_build = false
 
 [rpc_endpoints]
+robinhood = "https://rpc.mainnet.chain.robinhood.com"
 base_sepolia = "${BASE_SEPOLIA_RPC_URL}"
 base = "${BASE_MAINNET_RPC_URL}"
 

@@ -1,73 +1,33 @@
 import type { CharacterId, DifficultyId } from "@/game/types";
 import { DEFAULT_CHARACTER, isCharacterId } from "@/game/characters";
-import { sealedThemeForWeek, weekIdFromDate } from "./week";
-import { rankWeek, settlePayouts, skillScore, TREASURY_BPS } from "./ranking";
 import { coerceBests, emptyBests, mergeNormalBests } from "./bests";
-import type {
-  AddressKey,
-  NormalBests,
-  P2EDatabase,
-  P2ERunRecord,
-  PlayerProfile,
-  WeekState,
-} from "./types";
+import type { AddressKey, NormalBests, PlayerDatabase, PlayerProfile } from "./types";
 
 const KEY = "loopternity.p2e.v1";
 const GUEST_CHARACTER_KEY = "loopternity.character.v1";
 /** Device-only Normal PBs. Never merged into a wallet profile. */
 const GUEST_BESTS_KEY = "loopternity.normalBest.guest.v1";
 
-function emptyDb(): P2EDatabase {
-  return { players: {}, week: null, archive: [] };
+function emptyDb(): PlayerDatabase {
+  return { players: {} };
 }
 
-function readDb(): P2EDatabase {
+function readDb(): PlayerDatabase {
   if (typeof window === "undefined") return emptyDb();
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return emptyDb();
-    const parsed = JSON.parse(raw) as P2EDatabase;
+    const parsed = JSON.parse(raw) as PlayerDatabase;
     if (!parsed.players) parsed.players = {};
-    if (!parsed.archive) parsed.archive = [];
     return parsed;
   } catch {
     return emptyDb();
   }
 }
 
-function writeDb(db: P2EDatabase) {
+function writeDb(db: PlayerDatabase) {
   if (typeof window === "undefined") return;
   localStorage.setItem(KEY, JSON.stringify(db));
-}
-
-function newWeek(weekId: string): WeekState {
-  return {
-    weekId,
-    // Demo / vault-unset only. Live P2E world comes from mainnet `themeSealed`.
-    themeId: sealedThemeForWeek(weekId),
-    poolWei: "0",
-    treasuryAccruedWei: "0",
-    settled: false,
-    runs: [],
-    payouts: [],
-  };
-}
-
-/** Spreadsheet-only when the vault address is unset. Live weeks settle on 8453. */
-function rollWeek(db: P2EDatabase, now = new Date()): WeekState {
-  const id = weekIdFromDate(now);
-  if (db.week && db.week.weekId !== id && !db.week.settled) {
-    const prize =
-      (BigInt(db.week.poolWei || "0") * BigInt(TREASURY_BPS)) / BigInt(10000);
-    db.week.payouts = settlePayouts(db.week);
-    db.week.treasuryAccruedWei = prize.toString();
-    db.week.settled = true;
-    db.archive = [db.week, ...db.archive].slice(0, 24);
-  }
-  if (!db.week || db.week.weekId !== id) {
-    db.week = newWeek(id);
-  }
-  return db.week;
 }
 
 export function registerPlayer(address: AddressKey): PlayerProfile {
@@ -80,7 +40,6 @@ export function registerPlayer(address: AddressKey): PlayerProfile {
         ...existing,
         address,
         lastSeen: now,
-        // Keep this wallet's PBs. Do not import guest / other-wallet times.
         normalBest: coerceBests(existing.normalBest),
         characterId: existing.characterId ?? getGuestCharacterId(),
       }
@@ -284,56 +243,4 @@ export async function syncWalletNormalBests(
   } catch {
     return local;
   }
-}
-
-export function currentWeek(): WeekState {
-  const db = readDb();
-  const week = rollWeek(db);
-  writeDb(db);
-  return week;
-}
-
-/** Demo pool only when the vault address is unset. Live prize pool is `weekPoolWei`. */
-export function addPoolWei(amountWei: bigint): WeekState {
-  const db = readDb();
-  const week = rollWeek(db);
-  week.poolWei = (BigInt(week.poolWei || "0") + amountWei).toString();
-  writeDb(db);
-  return week;
-}
-
-export function recordP2ERun(
-  run: Omit<P2ERunRecord, "weekId" | "skillScore"> & { weekId?: string },
-): WeekState {
-  const db = readDb();
-  const week = rollWeek(db);
-  const record: P2ERunRecord = {
-    ...run,
-    weekId: week.weekId,
-    skillScore: skillScore(run.survivalSeconds, run.multiplierHundredths),
-  };
-  week.runs.push(record);
-  writeDb(db);
-  return week;
-}
-
-export function attachSealedThemeCipher(cipher: `0x${string}`): void {
-  const db = readDb();
-  const week = rollWeek(db);
-  if (!week.sealedThemeCipher) {
-    week.sealedThemeCipher = cipher;
-    writeDb(db);
-  }
-}
-
-export function weeklyStandings() {
-  const week = currentWeek();
-  return {
-    week,
-    ranked: rankWeek(week.runs),
-  };
-}
-
-export function listPlayers(): PlayerProfile[] {
-  return Object.values(readDb().players);
 }

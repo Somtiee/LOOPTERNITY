@@ -11,6 +11,8 @@ export class KeyboardInput {
   private restartQueued = false;
   private boostQueued = false;
   private boostHeld = false;
+  private freezeQueued = false;
+  private tsunamiQueued = false;
   private attached = false;
 
   private readonly onKeyDown = (e: KeyboardEvent) => {
@@ -29,6 +31,12 @@ export class KeyboardInput {
       e.preventDefault();
     } else if (e.code === "KeyR" || e.code === "Enter") {
       this.restartQueued = true;
+      e.preventDefault();
+    } else if (e.code === "KeyF" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      if (!e.repeat) this.freezeQueued = true;
+      e.preventDefault();
+    } else if (e.code === "KeyT" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      if (!e.repeat) this.tsunamiQueued = true;
       e.preventDefault();
     }
   };
@@ -78,12 +86,32 @@ export class KeyboardInput {
     return this.boostHeld;
   }
 
+  consumeFreeze(): boolean {
+    if (!this.freezeQueued) return false;
+    this.freezeQueued = false;
+    return true;
+  }
+
+  consumeTsunami(): boolean {
+    if (!this.tsunamiQueued) return false;
+    this.tsunamiQueued = false;
+    return true;
+  }
+
   requestRestart() {
     this.restartQueued = true;
   }
 
   requestBoost() {
     this.boostQueued = true;
+  }
+
+  requestFreeze() {
+    this.freezeQueued = true;
+  }
+
+  requestTsunami() {
+    this.tsunamiQueued = true;
   }
 
   setAnalog(x: number) {

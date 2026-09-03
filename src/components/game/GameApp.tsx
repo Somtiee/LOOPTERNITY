@@ -8,7 +8,7 @@ import {
   THEME_META,
 } from "@/game/constants";
 import { audio } from "@/game/audio/AudioManager";
-import { getTheme } from "@/game/themes";
+import { getTheme, themeForEpochHour } from "@/game/themes";
 import type { KeyboardInput } from "@/game/input/KeyboardInput";
 import { DEFAULT_CHARACTER } from "@/game/characters";
 import type {
@@ -27,6 +27,7 @@ import {
   type EquippedLoopitern,
 } from "@/web3/loopiterns/equip";
 import { useLoopiternsInventory } from "@/web3/loopiterns/useLoopiternsInventory";
+import { useLoopiternsSupply } from "@/web3/loopiterns/useLoopiternsSupply";
 import {
   recordGuestNormalBest,
   recordNormalBest,
@@ -70,18 +71,27 @@ export default function GameApp() {
   const { address } = useWalletSession();
   const { refresh } = usePlayerRegistry();
   const {
-    tokens,
+    tokenIds,
     loading: inventoryLoading,
     onRobinhood,
     configured,
     refetch: refetchInventory,
   } = useLoopiternsInventory();
+  const supply = useLoopiternsSupply();
   const coarsePointer = useCoarsePointer();
   const [screen, setScreen] = useState<Screen>("menu");
   const [mode, setMode] = useState<GameMode>("normal");
   const [themeId, setThemeId] = useState<ThemeId>(DEFAULT_THEME);
+  // P2M uses the UTC-hour theme; recomputed every render so a run started
+  // after a boundary flips with the hour.
+  const p2mThemeId: ThemeId = themeForEpochHour(
+    Math.floor(Date.now() / 3_600_000),
+  ).id;
   const [difficultyId, setDifficultyId] =
     useState<DifficultyId>(DEFAULT_DIFFICULTY);
+  // Theme for the active run — locked at launch so a UTC-hour rollover
+  // mid-run cannot flip the live world.
+  const [runThemeId, setRunThemeId] = useState<ThemeId>(DEFAULT_THEME);
   const [characterId, setCharacterId] =
     useState<CharacterId>(DEFAULT_CHARACTER);
   const [equipped, setEquipped] = useState<EquippedLoopitern | null>(null);
@@ -103,8 +113,10 @@ export default function GameApp() {
   }, []);
 
   useEffect(() => {
-    audio.setTheme(themeId);
-  }, [themeId]);
+    // P2M ignores the menu picker — the UTC-hour theme is the run's theme.
+    const effective = mode === "p2m" ? p2mThemeId : themeId;
+    audio.setTheme(effective);
+  }, [mode, p2mThemeId, themeId]);
 
   useEffect(() => {
     if (screen === "menu") audio.playBed("menu");
@@ -144,7 +156,9 @@ export default function GameApp() {
   useEffect(() => {
     if (!address || !onRobinhood || !configured || inventoryLoading) return;
     if (!equipped) return;
-    const owned = tokens.some((t) => t.tokenId === equipped.tokenId);
+    // Checked against every owned id, not just the visible page — a token
+    // beyond the current page must not be auto-unequipped.
+    const owned = tokenIds.some((id) => id === equipped.tokenId);
     if (!owned) {
       setEquipped(null);
       setEquippedLoopitern(address, null);
@@ -155,16 +169,22 @@ export default function GameApp() {
     equipped,
     inventoryLoading,
     onRobinhood,
-    tokens,
+    tokenIds,
   ]);
 
   const selectCharacter = useCallback(
     (id: CharacterId) => {
       setCharacterId(id);
+      // The CHARACTERS | LOOPITERNS toggle is the source of truth — picking a
+      // base character means running as that character, not the equipped NFT.
+      if (equipped !== null) {
+        setEquipped(null);
+        if (address) setEquippedLoopitern(address, null);
+      }
       if (address) setPlayerCharacter(address, id);
       else setGuestCharacterId(id);
     },
-    [address],
+    [address, equipped],
   );
 
   const selectEquip = useCallback(
@@ -177,7 +197,12 @@ export default function GameApp() {
 
   const launchRun = useCallback(() => {
     if (mode === "p2e") return;
-    const theme = getTheme(themeId);
+    if (mode === "p2m" && supply.soldOut) return;
+    // P2M locks the UTC-hour theme so every mint run in the same hour
+    // climbs the same world; Normal honors the picker. Locked at launch
+    // so a rollover mid-run cannot flip the live world.
+    const launchedThemeId = mode === "p2m" ? p2mThemeId : themeId;
+    const theme = getTheme(launchedThemeId);
     const rarity = mode === "normal" ? equipped?.rarity ?? null : null;
     const mods = runModifiersForMode(mode, rarity);
     recordedRef.current = false;
@@ -188,21 +213,23 @@ export default function GameApp() {
       shields: mods.maxShields,
       maxShields: mods.maxShields,
       themeName: theme.name,
-      dangerLabel: THEME_META[themeId].dangerLabel,
+      dangerLabel: THEME_META[launchedThemeId].dangerLabel,
       freezeReady: mods.freezeCharges > 0 && mods.freezeDuration > 0,
       freezeActive: false,
       tsunamiReady: mods.tsunamiCharges > 0,
     });
+    setRunThemeId(launchedThemeId);
     setRestartToken(0);
     setPaused(false);
     setRunKey((k) => k + 1);
     setScreen("playing");
-  }, [equipped, mode, themeId]);
+  }, [equipped, mode, p2mThemeId, supply.soldOut, themeId]);
 
   const startRun = useCallback(() => {
     if (mode === "p2e") return;
+    if (mode === "p2m" && supply.soldOut) return;
     launchRun();
-  }, [launchRun, mode]);
+  }, [launchRun, mode, supply.soldOut]);
 
   const restart = useCallback(() => {
     audio.sfx("click");
@@ -273,11 +300,16 @@ export default function GameApp() {
         onStart={startRun}
         equipped={equipped}
         onEquip={selectEquip}
+        p2mThemeId={p2mThemeId}
+        soldOut={supply.soldOut}
       />
     );
   }
 
-  const accent = getTheme(themeId).accent;
+  // Theme for the active run — locked at launch (see launchRun) so a
+  // UTC-hour rollover mid-run cannot flip the live world.
+  const activeThemeId = screen === "playing" ? runThemeId : mode === "p2m" ? p2mThemeId : themeId;
+  const accent = getTheme(activeThemeId).accent;
   const runDifficultyId = mode === "p2m" ? P2M_DIFFICULTY : difficultyId;
   const difficultyLabel =
     mode === "p2m" ? "P2M" : DIFFICULTIES[runDifficultyId].label;
@@ -299,7 +331,7 @@ export default function GameApp() {
         <div className="relative flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden shadow-[0_0_80px_rgba(0,0,0,0.45)]">
           <GameCanvas
             key={runKey}
-            themeId={themeId}
+            themeId={activeThemeId}
             difficultyId={runDifficultyId}
             characterId={characterId}
             onHud={onHud}

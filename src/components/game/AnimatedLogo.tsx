@@ -49,6 +49,13 @@ export function AnimatedLogo({
       >
         CLIMB FOREVER
       </p>
+      <p
+        className={`relative z-10 mt-1.5 text-center font-[family-name:var(--font-display)] tracking-[0.28em] text-[#00C805]/75 ${
+          compact ? "text-[8px]" : "text-[9px] sm:text-[10px]"
+        }`}
+      >
+        LOOPITERNS
+      </p>
     </div>
   );
 }
