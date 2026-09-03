@@ -183,7 +183,7 @@ export function StartMenu({
                 </span>
               </div>
               <p className="mt-2 text-xs leading-relaxed text-white/45">
-                Survive to unlock a LOOPITERN mint. No LOOPITERNS in this mode.
+                Survive to unlock a LOOPITERN mint.
               </p>
             </button>
 
@@ -291,7 +291,7 @@ export function StartMenu({
                   LOOPITERNS
                 </h2>
                 <p className="mb-3 text-[11px] text-white/35">
-                  LOOPITERNS cannot be used in Play-to-Mint.
+                  Vanilla climb — equipped LOOPITERNS don&apos;t apply here.
                 </p>
                 <LoopiternsSupplyPanel supply={supply} />
               </section>

@@ -166,6 +166,11 @@ export class Game {
     this.equippedTokenId =
       this.runMode === "normal" ? (options.equippedTokenId ?? null) : null;
     this.newSim(options.width, options.height);
+    if (process.env.NODE_ENV !== "production") {
+      // Dev-only handle for browser E2E (scripts/e2e-browser.ts); stripped
+      // from production builds.
+      (globalThis as { __loopiternGame?: Game }).__loopiternGame = this;
+    }
   }
 
   // --- sim state, read by the renderer -------------------------------------

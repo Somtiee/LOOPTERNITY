@@ -215,18 +215,20 @@ console.log("\nC. garbage inputLog (clock already passed):");
 console.log("\nD. doctored claims and logs:");
 {
   // D1: claim a longer run than the log shows — the classic "I survived 90s".
-  // The replay is authoritative: |replay − claim| > 0.75s → no voucher.
+  // The replay is authoritative: either the claim doesn't even unlock the
+  // rarity, or |replay − claim| > 0.75s → no voucher either way.
   const r1 = await postJson("/api/loopitern/voucher", {
     address: MINTER,
     rarity: 1,
-    timeSurvived: timeSurvived + 5,
+    timeSurvived: Math.max(timeSurvived + 5, 60.2),
     sessionId: session.sessionId,
     inputLog: log,
   });
   assert(r1.status === 403, `D1 expected 403, got ${r1.status}: ${JSON.stringify(r1.json)}`);
   assert(
     typeof r1.json.error === "string" &&
-      (r1.json.error.includes("mismatch") || r1.json.error.includes("replay")),
+      (r1.json.error.includes("mismatch") ||
+        r1.json.error.includes("not unlocked")),
     `D1 unexpected error: ${JSON.stringify(r1.json)}`,
   );
   console.log(`  claim +5s over the log → ${r1.status} ${String(r1.json.error)} ✓`);
@@ -254,6 +256,12 @@ console.log("\nD. doctored claims and logs:");
     inputLog: log,
   });
   assert(r3.status === 403, `D3 expected 403, got ${r3.status}: ${JSON.stringify(r3.json)}`);
+  assert(
+    typeof r3.json.error === "string" &&
+      (r3.json.error.includes("mismatch") ||
+        r3.json.error.includes("not unlocked")),
+    `D3 unexpected error: ${JSON.stringify(r3.json)}`,
+  );
   console.log(`  overclaimed rarity   → ${r3.status} ${String(r3.json.error)} ✓`);
 }
 

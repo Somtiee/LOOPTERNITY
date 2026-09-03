@@ -276,9 +276,7 @@ export function useMintLoopitern(
     if (!wallet) return;
     if (ownedCount >= MAX_PER_WALLET || paused) return;
     if (!sessionId || !runRecord) {
-      setLocalError(
-        "No attested run — hit NEW for a fresh run, then mint (playing is the only way).",
-      );
+      setLocalError("No verified run — hit NEW GAME, play, then mint.");
       return;
     }
     setLocalError(null);

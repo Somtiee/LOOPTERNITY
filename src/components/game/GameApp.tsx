@@ -128,6 +128,17 @@ export default function GameApp() {
   }, []);
 
   useEffect(() => {
+    if (process.env.NODE_ENV !== "production") {
+      // Dev-only handle for browser E2E (scripts/e2e-browser.ts); stripped
+      // from production builds.
+      (window as unknown as { __loopiternP2m?: unknown }).__loopiternP2m = {
+        runSession,
+        runRecord,
+      };
+    }
+  });
+
+  useEffect(() => {
     // P2M ignores the menu picker — the UTC-hour theme is the run's theme.
     const effective = mode === "p2m" ? p2mThemeId : themeId;
     audio.setTheme(effective);

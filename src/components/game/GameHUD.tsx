@@ -154,7 +154,7 @@ function P2mMintBlock({
   } else if (remainingByRarity === undefined) {
     disableReason = "Could not read remaining supply.";
   } else if (!unlocked) {
-    disableReason = `Survive ${formatRarityGate(RARITIES[0].minSeconds)} (Common) to unlock a mint.`;
+    disableReason = `Survive ${formatRarityGate(RARITIES[0].minSeconds)} to unlock a mint.`;
   } else if (!willMint) {
     disableReason = collectionSoldOut
       ? "Collection sold out — all 10,000 LOOPITERNS minted."
@@ -172,7 +172,7 @@ function P2mMintBlock({
   } else if (!runSessionId || !runRecord) {
     // Session or record missing (offline / 503 / unattested run). Restarting
     // gets a fresh attested run — better than a dead button with no explanation.
-    disableReason = "Run not attested — hit NEW for a fresh run, then mint.";
+    disableReason = "No verified run — hit NEW GAME, play, then mint.";
   }
 
   const mintEnabled = disableReason === null && !busy && status !== "success";
@@ -219,26 +219,21 @@ function P2mMintBlock({
       <p className="mt-1.5 text-[11px] leading-relaxed text-white/55">
         {unlocked
           ? dropped && willMint
-            ? `${unlocked.name} is sold out — this mint drops to ${willMint.name}.`
+            ? `${unlocked.name} sold out — minting ${willMint.name}.`
             : willMint
-              ? `Highest unlocked: ${unlocked.name} · ${formatRarityGate(unlocked.minSeconds)} · ${formatMintRemaining(remainingByRarity, unlocked.id)} left at this rarity.`
+              ? `${formatMintRemaining(remainingByRarity, unlocked.id)} at ${unlocked.name}`
               : collectionSoldOut
                 ? "All 10,000 LOOPITERNS are minted."
-                : "Every rarity you unlocked is sold out."
+                : "Sold out for this run."
           : next
-            ? `Common unlocks at ${formatRarityGate(next.minSeconds)}. Medium climb for every P2M run.`
+            ? `First LOOPITERN unlocks at ${formatRarityGate(next.minSeconds)}.`
             : "Survive to unlock a mint."}
       </p>
       {mintPrice !== undefined ? (
         <p className="mt-1 text-[10px] tabular-nums text-white/40">
-          Price {formatMintPriceEth(mintPrice)} on Robinhood Chain.
+          {formatMintPriceEth(mintPrice)}
         </p>
       ) : null}
-      <p className="mt-1.5 text-[10px] leading-relaxed text-white/40">
-        LOOPITERNS cannot be used in P2M — equip in Normal only. The server
-        replays your recorded run before signing: playing is the only way in.
-        Chain checks price, supply, and the 5-cap.
-      </p>
       <div className="mt-3 flex justify-center">
         <ConnectWalletButton size="sm" />
       </div>
