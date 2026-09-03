@@ -2,39 +2,39 @@ import {
   DANGER,
   DEFAULT_DIFFICULTY,
   DEFAULT_THEME,
-  DIFFICULTIES,
-  ENEMIES,
-  FALLING,
-  OBSTACLES,
-  PICKUPS,
   PLAYER,
-  SINK,
   THEME_META,
   WORLD,
-  enemySmartMul,
-  enemySpeedMul,
-  runIntensity,
-  sinkProgress,
 } from "../constants";
 import { DEFAULT_CHARACTER, getCharacter } from "../characters";
 import { loopiternRigPalette } from "../loopiternArt";
 import { dnaFromTokenId } from "../loopiternTraits";
 import { KeyboardInput } from "../input/KeyboardInput";
-import { aabb, clamp, lerp, randRange } from "../math";
+import { clamp, randRange } from "../math";
 import { drawCharacter } from "../render/drawCharacter";
 import { drawLoopitern } from "../render/drawLoopitern";
 import { getTheme } from "../themes";
 import { VANILLA_MODIFIERS, type RunModifiers } from "../traits";
+import {
+  ClimbSim,
+  type PlayerState,
+  type SimEvent,
+  type TickInputs,
+} from "../sim/ClimbSim";
+import {
+  createInputRecorder,
+  type InputRecorder,
+  type RunInputLog,
+} from "../sim/inputLog";
+import { SIM_TICK } from "../sim/simMath";
 import type {
   CharacterId,
   DifficultyId,
   Enemy,
-  EnemyKind,
   GameMode,
   GamePhase,
   HudSnapshot,
   Obstacle,
-  ObstacleKind,
   Particle,
   Pickup,
   Projectile,
@@ -52,6 +52,12 @@ export type GameAudioHooks = {
   onNearMiss?: () => void;
   onFreeze?: () => void;
   onTsunami?: () => void;
+};
+
+/** A finished, replayable run: the input log plus the run's honest clock. */
+export type RunRecord = {
+  inputLog: RunInputLog;
+  timeSurvived: number;
 };
 
 export type GameOptions = {
@@ -74,92 +80,59 @@ export type GameOptions = {
    * DNA is never persisted; it is re-derived from tokenId + rarity.
    */
   equippedTokenId?: number | null;
-};
-
-type PlayerState = {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  facing: 1 | -1;
-  invuln: number;
-  bob: number;
-  boostT: number;
-  boostCd: number;
+  /**
+   * Deterministic session seed (P2M). The server pins the same seed to the
+   * session and replays the recorded inputs through the identical ClimbSim
+   * before signing a mint voucher. Omitted → fresh random seed per run
+   * (Normal keeps its roguelite freshness).
+   */
+  seed?: number;
+  /** Sim playfield dims (css px, integers). Locked for the run; the renderer
+   *  letterboxes if the canvas is resized mid-run. Defaults to WORLD dims. */
+  width?: number;
+  height?: number;
+  /** P2M: called once, when the recorded run dies. */
+  onRunRecord?: (record: RunRecord) => void;
 };
 
 /**
- * Imperative canvas game. World Y increases upward.
+ * Canvas game shell. All gameplay lives in the deterministic ClimbSim
+ * (src/game/sim/ClimbSim.ts) stepped at a fixed 60Hz; this class owns the
+ * RAF accumulator loop, input sampling + recording, and 100% of the
+ * cosmetics: rendering, particles, stars, scenery, shake, flashes, banners,
+ * audio. Nothing cosmetic feeds back into the sim, so Math.random stays
+ * safe here.
  */
 export class Game {
   private ctx: CanvasRenderingContext2D;
-  private width: number = WORLD.width;
-  private height: number = WORLD.viewHeight;
-  private dpr = 1;
-
   private input: KeyboardInput;
   private theme: ThemePalette;
   private difficultyId: DifficultyId;
+  private themeId: ThemeId;
   private characterId: CharacterId;
   private onHud?: (hud: HudSnapshot) => void;
   private audio?: GameAudioHooks;
-  private nearMissCd = 0;
-  private nearMissCount = 0;
-  private hitsTaken = 0;
   private keyboardRestart = true;
-  private modifiers: RunModifiers = VANILLA_MODIFIERS;
   private runMode: GameMode = "normal";
   private equippedRarity: LoopiternRarityId | null = null;
   private equippedTokenId: number | null = null;
 
-  private phase: GamePhase = "playing";
-  private shields: number = PLAYER.maxShields;
-  private freezeCharges = 0;
-  private freezeT = 0;
-  private tsunamiCharges = 0;
-  private time = 0;
-  private cameraY = 0;
-  private dangerY = 0;
-  private nextObstacleY = 0;
-  private nextPickupY = 0;
-  private nextEnemyAt = 0;
-  private nextFallAt = 0;
-  private dangerReliefT = 0;
-  private obstacleId = 0;
-  private enemyId = 0;
-  private pickupId = 0;
-  private projId = 0;
+  /** Session seed for replay attestation (P2M); undefined = random per run. */
+  private sessionSeed?: number;
+  private onRunRecord?: (record: RunRecord) => void;
+  private sim!: ClimbSim;
+  private recorder: InputRecorder | null = null;
+  /** Modifiers as passed at construction (Normal honors equipped traits). */
+  private baseModifiers: RunModifiers = VANILLA_MODIFIERS;
+
+  // --- cosmetics (never affect the sim) ---
   private shake = 0;
   private hitFlash = 0;
   private collectFlash = 0;
-  private threatPulse = 0;
   private alertBanner = 0;
   private bannerText = "";
-  private sinkStage = 0;
-  private sinkEventId = 0;
-  /** Next frame: apply a short on-screen breath after a new pull stage */
-  private sinkReliefPending = false;
-  /** Brief window after a new stage where undertow is paused */
-  private sinkReliefT = 0;
   private paused = false;
   private stars: { x: number; y: number; r: number; tw: number }[] = [];
-
-  private player: PlayerState = {
-    x: 0,
-    y: 0,
-    vx: 0,
-    vy: 0,
-    facing: 1,
-    invuln: 0,
-    bob: 0,
-    boostT: 0,
-    boostCd: 0,
-  };
-
-  private obstacles: Obstacle[] = [];
-  private enemies: Enemy[] = [];
-  private projectiles: Projectile[] = [];
-  private pickups: Pickup[] = [];
   private particles: Particle[] = [];
   private scenery: { x: number; y: number; w: number; h: number; shade: number }[] =
     [];
@@ -169,37 +142,151 @@ export class Game {
   private running = false;
   private hudAcc = 0;
   private pauseDrawn = false;
+  /** Leftover real time carried into the next frame's fixed steps. */
+  private acc = 0;
 
   constructor(canvas: HTMLCanvasElement, input: KeyboardInput, options: GameOptions = {}) {
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("2D canvas context unavailable");
     this.ctx = ctx;
     this.input = input;
-    this.theme = getTheme(options.themeId ?? DEFAULT_THEME);
+    this.themeId = options.themeId ?? DEFAULT_THEME;
+    this.theme = getTheme(this.themeId);
     this.difficultyId = options.difficultyId ?? DEFAULT_DIFFICULTY;
     this.characterId = options.characterId ?? DEFAULT_CHARACTER;
     this.onHud = options.onHud;
     this.audio = options.audio;
     this.keyboardRestart = options.keyboardRestart !== false;
     this.runMode = options.mode ?? "normal";
-    this.modifiers =
-      this.runMode === "normal"
-        ? (options.modifiers ?? VANILLA_MODIFIERS)
-        : VANILLA_MODIFIERS;
+    this.baseModifiers = options.modifiers ?? VANILLA_MODIFIERS;
+    this.sessionSeed = options.seed;
+    this.onRunRecord = options.onRunRecord;
     this.equippedRarity =
       this.runMode === "normal" ? (options.equippedRarity ?? null) : null;
     this.equippedTokenId =
       this.runMode === "normal" ? (options.equippedTokenId ?? null) : null;
-    this.reset();
+    this.newSim(options.width, options.height);
   }
 
+  // --- sim state, read by the renderer -------------------------------------
+
+  private get modifiers(): RunModifiers {
+    return this.sim.modifiers;
+  }
+
+  private get player(): PlayerState {
+    return this.sim.player;
+  }
+
+  private get obstacles(): Obstacle[] {
+    return this.sim.obstacles;
+  }
+
+  private get enemies(): Enemy[] {
+    return this.sim.enemies;
+  }
+
+  private get projectiles(): Projectile[] {
+    return this.sim.projectiles;
+  }
+
+  private get pickups(): Pickup[] {
+    return this.sim.pickups;
+  }
+
+  private get cameraY(): number {
+    return this.sim.cameraY;
+  }
+
+  private get dangerY(): number {
+    return this.sim.dangerY;
+  }
+
+  private get time(): number {
+    return this.sim.time;
+  }
+
+  private get phase(): GamePhase {
+    return this.sim.phase;
+  }
+
+  private get freezeT(): number {
+    return this.sim.freezeT;
+  }
+
+  private get threatPulse(): number {
+    return this.sim.threatPulse;
+  }
+
+  private get width(): number {
+    return this.sim.width;
+  }
+
+  private get height(): number {
+    return this.sim.height;
+  }
+
+  private worldToScreen(y: number) {
+    return this.sim.worldToScreen(y);
+  }
+
+  private obstacleRect(o: Obstacle) {
+    return this.sim.obstacleRect(o);
+  }
+
+  // --- lifecycle -------------------------------------------------------------
+
+  /**
+   * Swap the session seed used for FUTURE runs (P2M restart: GameApp fetches
+   * the new session before bumping the restart token). Never disturbs a run
+   * in progress — the live sim keeps its construction seed.
+   */
+  setSessionSeed(seed: number | undefined) {
+    this.sessionSeed = seed;
+  }
+
+  private newSim(width?: number, height?: number) {
+    const seed =
+      this.sessionSeed != null
+        ? this.sessionSeed
+        : (Math.random() * 0x7fffffff) | 0;
+    this.sim = new ClimbSim({
+      seed,
+      width: width ?? WORLD.width,
+      height: height ?? WORLD.viewHeight,
+      themeId: this.themeId,
+      difficultyId: this.difficultyId,
+      modifiers:
+        this.runMode === "normal" ? this.baseModifiers : VANILLA_MODIFIERS,
+    });
+    this.recorder =
+      this.sessionSeed != null && this.onRunRecord
+        ? createInputRecorder()
+        : null;
+    this.acc = 0;
+    this.shake = 0;
+    this.hitFlash = 0;
+    this.collectFlash = 0;
+    this.alertBanner = 0;
+    this.bannerText = "";
+    this.particles = [];
+    this.scenery = [];
+    this.stars = [];
+    this.seedScenery();
+    this.seedStars();
+  }
+
+  /**
+   * Size the canvas. The sim's playfield dims are locked for the whole run
+   * (a mid-run resize would desync the replayed spawn stream), so the canvas
+   * keeps a fixed backing store at sim dims × dpr and CSS scales it — the
+   * aspect is locked 1:1 by the canvas host, so this is a clean letterbox.
+   */
   setSize(cssWidth: number, cssHeight: number, dpr: number) {
-    this.width = Math.max(280, cssWidth);
-    this.height = Math.max(420, cssHeight);
-    this.dpr = dpr;
-    const canvas = this.ctx.canvas;
-    canvas.width = Math.floor(this.width * dpr);
-    canvas.height = Math.floor(this.height * dpr);
+    void cssWidth;
+    void cssHeight;
+    this.ctx.canvas.width = Math.floor(this.sim.width * dpr);
+    this.ctx.canvas.height = Math.floor(this.sim.height * dpr);
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
@@ -209,12 +296,11 @@ export class Game {
     this.lastTs = performance.now();
     const tick = (ts: number) => {
       if (!this.running) return;
-      const dt = Math.min(0.033, (ts - this.lastTs) / 1000);
+      const frameDt = Math.min(0.25, (ts - this.lastTs) / 1000);
       this.lastTs = ts;
       if (!this.paused) {
         this.pauseDrawn = false;
-        this.update(dt);
-        this.draw();
+        this.frame(frameDt);
       } else if (!this.pauseDrawn) {
         this.draw();
         this.pauseDrawn = true;
@@ -232,7 +318,10 @@ export class Game {
   setPaused(paused: boolean) {
     this.paused = paused;
     this.pauseDrawn = false;
-    if (!paused) this.lastTs = performance.now();
+    if (!paused) {
+      this.lastTs = performance.now();
+      this.acc = 0;
+    }
   }
 
   isPaused() {
@@ -241,82 +330,207 @@ export class Game {
 
   restart() {
     this.paused = false;
-    this.reset();
+    this.newSim();
     this.emitHud(true);
   }
 
-  private playWidth() {
-    return this.width;
+  // --- fixed-timestep loop ---------------------------------------------------
+
+  private frame(frameDt: number) {
+    if (this.phase === "gameover") {
+      if (
+        this.keyboardRestart &&
+        (this.input.consumeRestart() || this.input.consumeBoost())
+      ) {
+        this.restart();
+        this.draw();
+        return;
+      }
+      this.input.consumeRestart();
+      this.input.consumeBoost();
+      this.input.consumeFreeze();
+      this.input.consumeTsunami();
+      this.updateCosmetics(frameDt, 8);
+      this.draw();
+      return;
+    }
+
+    this.input.consumeRestart(); // mid-run R spam is ignored, same as before
+
+    this.acc = Math.min(this.acc + frameDt, 0.25);
+    const MAX_STEPS = 8;
+    let steps = 0;
+    while (this.acc >= SIM_TICK && steps < MAX_STEPS && this.phase === "playing") {
+      this.acc -= SIM_TICK;
+      steps += 1;
+      const inputs = this.sampleInputs();
+      const events = this.sim.step(inputs);
+      if (this.recorder) {
+        // sim.tick counts executed steps; the step just run was tick-1.
+        this.recorder.record(this.sim.tick - 1, inputs);
+      }
+      this.handleEvents(events);
+    }
+    if (steps >= MAX_STEPS) {
+      // Sustained overload: drop the backlog instead of spiraling — the
+      // game visibly slows, exactly like the old 33ms dt cap.
+      this.acc = Math.min(this.acc, SIM_TICK);
+    }
+
+    this.updateCosmetics(frameDt, 6);
+    this.emitHud();
+    this.draw();
   }
 
-  private enemyKind(): EnemyKind {
-    if (this.theme.id === "planetary") return "alien";
-    if (this.theme.id === "antarctica") return "bear";
-    return "dragon";
-  }
-
-  private reset() {
-    const diff = DIFFICULTIES[this.difficultyId];
-    this.phase = "playing";
-    this.shields = this.modifiers.maxShields;
-    this.freezeCharges = this.modifiers.freezeCharges;
-    this.freezeT = 0;
-    this.tsunamiCharges = this.modifiers.tsunamiCharges;
-    this.time = 0;
-    this.shake = 0;
-    this.hitFlash = 0;
-    this.collectFlash = 0;
-    this.threatPulse = 0;
-    this.alertBanner = 0;
-    this.bannerText = "";
-    this.sinkStage = 0;
-    this.sinkEventId = 0;
-    this.sinkReliefPending = false;
-    this.sinkReliefT = 0;
-    this.paused = false;
-    this.dangerReliefT = 0;
-    this.nearMissCd = 0;
-    this.nearMissCount = 0;
-    this.hitsTaken = 0;
-    this.obstacleId = 0;
-    this.enemyId = 0;
-    this.pickupId = 0;
-    this.projId = 0;
-    this.obstacles = [];
-    this.enemies = [];
-    this.projectiles = [];
-    this.pickups = [];
-    this.particles = [];
-    this.scenery = [];
-    this.stars = [];
-
-    this.player = {
-      x: this.playWidth() / 2 - PLAYER.width / 2,
-      y: 120,
-      vx: 0,
-      vy: diff.climbSpeed,
-      facing: 1,
-      invuln: 0,
-      bob: 0,
-      boostT: 0,
-      boostCd: 0,
+  private sampleInputs(): TickInputs {
+    return {
+      axis: this.input.axis(),
+      boost: this.input.consumeBoost(),
+      freeze: this.input.consumeFreeze(),
+      tsunami: this.input.consumeTsunami(),
     };
+  }
 
-    this.cameraY = this.player.y + 80;
-    this.dangerY = this.player.y - DANGER.startOffset;
-    this.nextObstacleY = this.player.y + 260;
-    this.nextPickupY = this.player.y + PICKUPS.firstHeight;
-    this.nextEnemyAt = this.time + 4.5 * diff.enemySpawnMul;
-    this.nextFallAt = FALLING.firstDelay;
+  /** Translate sim events into audio + cosmetic feedback. */
+  private handleEvents(events: SimEvent[]) {
+    for (const ev of events) {
+      switch (ev.kind) {
+        case "boost": {
+          this.audio?.onBoost?.();
+          this.burstParticles(
+            this.player.x + PLAYER.width / 2,
+            this.player.y + 8,
+            12,
+            this.theme.accent,
+          );
+          break;
+        }
+        case "freeze": {
+          this.bannerText = "FREEZE";
+          this.alertBanner = 1.4;
+          this.audio?.onFreeze?.();
+          break;
+        }
+        case "tsunami": {
+          const green = "#00C805";
+          this.shake = Math.max(this.shake, 0.75);
+          this.bannerText = "TSUNAMI";
+          this.alertBanner = 1.5;
+          this.burstParticles(
+            this.player.x + PLAYER.width / 2,
+            this.dangerY + 24,
+            28,
+            green,
+          );
+          this.burstParticles(
+            this.player.x + PLAYER.width / 2,
+            this.player.y - 10,
+            18,
+            this.theme.dangerGlow,
+          );
+          this.audio?.onTsunami?.();
+          break;
+        }
+        case "hit": {
+          this.shake = 0.6;
+          this.hitFlash = 0.28;
+          this.audio?.onHit?.();
+          this.burstParticles(
+            this.player.x + PLAYER.width / 2,
+            this.player.y + 10,
+            18,
+            this.theme.dangerGlow,
+          );
+          break;
+        }
+        case "gameOver": {
+          this.audio?.onGameOver?.();
+          this.burstParticles(
+            this.player.x + PLAYER.width / 2,
+            this.player.y + 16,
+            32,
+            this.theme.accent,
+          );
+          this.finishRunRecord();
+          this.emitHud(true);
+          break;
+        }
+        case "nearMiss": {
+          this.audio?.onNearMiss?.();
+          break;
+        }
+        case "enemyAppear": {
+          this.bannerText =
+            ev.enemy === "alien"
+              ? "ALIEN INBOUND"
+              : ev.enemy === "bear"
+                ? "BEAR APPROACHING"
+                : "DRAGON INBOUND";
+          this.alertBanner = 1.6;
+          this.shake = Math.max(this.shake, 0.25);
+          this.audio?.onEnemyAppear?.();
+          break;
+        }
+        case "enemyShot": {
+          this.burstParticles(ev.x, ev.y, 6, this.theme.dangerGlow);
+          break;
+        }
+        case "projectileHit": {
+          this.burstParticles(ev.x, ev.y, 14, this.theme.dangerSurface);
+          break;
+        }
+        case "shieldPickup": {
+          if (ev.healed) {
+            this.collectFlash = 0.35;
+            this.audio?.onShieldPickup?.();
+            this.burstParticles(ev.x, ev.y, 18, "#ffe08a");
+            this.burstParticles(ev.x, ev.y, 10, this.theme.accent);
+          } else {
+            this.collectFlash = 0.2;
+            this.burstParticles(ev.x, ev.y, 10, "#ffffff");
+          }
+          break;
+        }
+        case "sinkStage": {
+          const label = THEME_META[this.themeId].dangerLabel.toUpperCase();
+          const capped = ev.maxStage ? " (MAX)" : "";
+          this.bannerText = `${label} PULL ×${ev.stage}${capped} — BOOST UP!`;
+          this.alertBanner = 2.8;
+          this.shake = Math.max(this.shake, 0.5);
+          this.burstParticles(
+            this.player.x + PLAYER.width / 2,
+            this.player.y - 20,
+            16,
+            this.theme.dangerGlow,
+          );
+          break;
+        }
+      }
+    }
+  }
 
-    this.seedScenery();
-    this.seedStars();
-    this.ensureObstacles();
-    this.ensurePickups();
+  /** P2M: hand the finished run's replayable record to the app. */
+  private finishRunRecord() {
+    if (!this.recorder || !this.onRunRecord) return;
+    const record: RunRecord = {
+      inputLog: this.recorder.finish(this.sim.tick, this.sim.width, this.sim.height),
+      timeSurvived: this.sim.time,
+    };
+    this.recorder = null;
+    this.onRunRecord(record);
+  }
+
+  private updateCosmetics(dt: number, shakeDecayMul = 6) {
+    this.shake = Math.max(0, this.shake - dt * shakeDecayMul);
+    this.hitFlash = Math.max(0, this.hitFlash - dt);
+    this.collectFlash = Math.max(0, this.collectFlash - dt);
+    this.alertBanner = Math.max(0, this.alertBanner - dt);
+    this.spawnAmbientParticles(dt);
+    this.updateParticles(dt);
   }
 
   private seedScenery() {
-    const w = this.playWidth();
+    const w = this.width;
     for (let i = 0; i < 48; i++) {
       this.scenery.push({
         x: randRange(10, Math.max(40, w - 30)),
@@ -329,7 +543,7 @@ export class Game {
   }
 
   private seedStars() {
-    const w = this.playWidth();
+    const w = this.width;
     for (let i = 0; i < 90; i++) {
       this.stars.push({
         x: randRange(0, w),
@@ -338,930 +552,6 @@ export class Game {
         tw: Math.random() * Math.PI * 2,
       });
     }
-  }
-
-  private update(dt: number) {
-    if (this.phase === "gameover") {
-      if (
-        this.keyboardRestart &&
-        (this.input.consumeRestart() || this.input.consumeBoost())
-      ) {
-        this.restart();
-        return;
-      }
-      this.input.consumeRestart();
-      this.input.consumeBoost();
-      this.input.consumeFreeze();
-      this.input.consumeTsunami();
-      this.updateParticles(dt);
-      this.shake = Math.max(0, this.shake - dt * 8);
-      this.hitFlash = Math.max(0, this.hitFlash - dt);
-      this.collectFlash = Math.max(0, this.collectFlash - dt);
-      this.alertBanner = Math.max(0, this.alertBanner - dt);
-      return;
-    }
-
-    if (this.input.consumeRestart()) {
-      // ignore mid-run accidental R spam for restart — only R after death via above
-    }
-
-    const diff = DIFFICULTIES[this.difficultyId];
-    this.time += dt;
-    this.player.bob += dt * 10;
-    this.player.invuln = Math.max(0, this.player.invuln - dt);
-    this.player.boostCd = Math.max(0, this.player.boostCd - dt);
-    this.player.boostT = Math.max(0, this.player.boostT - dt);
-    this.shake = Math.max(0, this.shake - dt * 6);
-    this.hitFlash = Math.max(0, this.hitFlash - dt);
-    this.collectFlash = Math.max(0, this.collectFlash - dt);
-    this.alertBanner = Math.max(0, this.alertBanner - dt);
-    this.dangerReliefT = Math.max(0, this.dangerReliefT - dt);
-    this.sinkReliefT = Math.max(0, this.sinkReliefT - dt);
-    this.nearMissCd = Math.max(0, this.nearMissCd - dt);
-
-    if (this.input.consumeBoost() && this.player.boostCd <= 0) {
-      this.player.boostT = PLAYER.boostDuration;
-      this.player.boostCd = PLAYER.boostCooldown;
-      this.audio?.onBoost?.();
-      this.burstParticles(
-        this.player.x + PLAYER.width / 2,
-        this.player.y + 8,
-        12,
-        this.theme.accent,
-      );
-    }
-
-    if (
-      this.input.consumeFreeze() &&
-      this.freezeCharges > 0 &&
-      this.freezeT <= 0 &&
-      this.modifiers.freezeDuration > 0
-    ) {
-      this.freezeCharges -= 1;
-      this.freezeT = this.modifiers.freezeDuration;
-      this.bannerText = "FREEZE";
-      this.alertBanner = 1.4;
-      this.audio?.onFreeze?.();
-    }
-
-    if (this.input.consumeTsunami() && this.tsunamiCharges > 0) {
-      this.tsunamiCharges -= 1;
-      this.triggerTsunami();
-    }
-
-    this.freezeT = Math.max(0, this.freezeT - dt);
-    const frozen = this.freezeT > 0;
-
-    const axis = this.input.axis();
-    const accelX = PLAYER.accelX * this.modifiers.speedMul;
-    const maxSpeedX = PLAYER.maxSpeedX * this.modifiers.speedMul;
-    if (axis !== 0) {
-      this.player.vx += axis * accelX * dt;
-      this.player.facing = axis < 0 ? -1 : 1;
-    } else {
-      const fr = PLAYER.frictionX * dt;
-      if (Math.abs(this.player.vx) <= fr) this.player.vx = 0;
-      else this.player.vx -= Math.sign(this.player.vx) * fr;
-    }
-    this.player.vx = clamp(this.player.vx, -maxSpeedX, maxSpeedX);
-
-    // Pull schedule: 28s → ×1, 65s → ×2, 110s → ×3, then pulse
-    const progress = sinkProgress(this.time);
-    if (progress.eventId > this.sinkEventId) {
-      this.sinkEventId = progress.eventId;
-      this.sinkStage = progress.stage;
-      this.sinkReliefPending = true;
-      this.sinkReliefT = 1.1;
-      const label = THEME_META[this.theme.id].dangerLabel.toUpperCase();
-      const capped =
-        this.sinkStage >= SINK.maxStage ? " (MAX)" : "";
-      this.bannerText = `${label} PULL ×${this.sinkStage}${capped} — BOOST UP!`;
-      this.alertBanner = 2.8;
-      this.shake = Math.max(this.shake, 0.5);
-      this.burstParticles(
-        this.player.x + PLAYER.width / 2,
-        this.player.y - 20,
-        16,
-        this.theme.dangerGlow,
-      );
-    }
-
-    // Undertow pulls until the hot zone; the rise itself can still finish the catch
-    const proxNow = this.computeDangerProximity();
-    const sinkEngaged =
-      !frozen &&
-      this.sinkStage > 0 &&
-      this.sinkReliefT <= 0 &&
-      proxNow < SINK.maxProximity;
-
-    const sinkPull = sinkEngaged
-      ? this.sinkStage * SINK.pullPerStage[this.difficultyId]
-      : 0;
-    const pulse = 1 + Math.sin(this.time * 3.1) * 0.035;
-    const boostMul =
-      this.player.boostT > 0
-        ? 1 + (PLAYER.boostImpulse / Math.max(1, diff.climbSpeed)) * (this.player.boostT / PLAYER.boostDuration)
-        : 1;
-    this.player.vy = diff.climbSpeed * pulse * boostMul - sinkPull;
-    this.player.x += this.player.vx * dt;
-    this.player.y += this.player.vy * dt;
-
-    const minX = WORLD.wallPadding;
-    const maxX = this.playWidth() - WORLD.wallPadding - PLAYER.width;
-    this.player.x = clamp(this.player.x, minX, maxX);
-
-    const dangerBonus = sinkEngaged
-      ? this.sinkStage * SINK.dangerBonusPerStage[this.difficultyId]
-      : 0;
-    if (!frozen) {
-      const dangerSpeed =
-        diff.dangerBaseSpeed + this.time * diff.dangerAccel + dangerBonus;
-      this.dangerY += dangerSpeed * dt;
-
-      const maxGap = Math.max(
-        SINK.minGap,
-        DANGER.maxGap - this.sinkStage * SINK.gapShrinkPerStage,
-      );
-      const extraGap = this.player.y - this.dangerY - maxGap;
-      if (this.dangerReliefT <= 0 && extraGap > 0) {
-        this.dangerY += Math.min(extraGap, DANGER.catchUpSpeed * dt);
-      }
-    } else {
-      this.nextEnemyAt += dt;
-      this.nextFallAt += dt;
-    }
-
-    // New pull stage: a short on-screen breath, then the hunt resumes
-    if (this.sinkReliefPending) {
-      this.setDangerProximity(SINK.stageReliefProximity);
-      this.sinkReliefPending = false;
-    }
-
-    const gap = this.player.y - this.dangerY;
-    this.threatPulse = clamp(1 - gap / DANGER.warnGap, 0, 1);
-
-    this.ensureObstacles();
-    this.ensurePickups();
-    if (!frozen) {
-      this.spawnEnemies();
-      this.spawnFallingHazards();
-    }
-    this.updateObstacles(dt, diff.obstacleSpeedMul);
-    if (!frozen) {
-      this.updateEnemies(dt);
-      this.updateProjectiles(dt);
-    }
-    this.updatePickups(dt);
-    this.resolveObstacleHits();
-    this.resolveEnemyHits();
-    this.resolveProjectileHits();
-    this.resolvePickupCollect();
-    this.resolveDangerHit();
-    this.detectNearMiss();
-
-    const targetCam = this.player.y + this.height * 0.22;
-    this.cameraY = lerp(this.cameraY, targetCam, 1 - Math.pow(0.001, dt));
-
-    this.spawnAmbientParticles(dt);
-    this.updateParticles(dt);
-    this.emitHud();
-  }
-
-  private themeObstacleKinds(): ObstacleKind[] {
-    switch (this.theme.id) {
-      case "planetary":
-        return ["asteroid", "crystal", "ledge"];
-      case "antarctica":
-        return ["iceberg", "icicle", "spike", "ledge"];
-      default:
-        return ["rock", "ember", "spike", "ledge"];
-    }
-  }
-
-  private ensureObstacles() {
-    const diff = DIFFICULTIES[this.difficultyId];
-    const top = this.player.y + OBSTACLES.spawnAhead;
-    const fieldW = this.playWidth();
-    const kinds = this.themeObstacleKinds();
-
-    while (this.nextObstacleY < top) {
-      const kind = kinds[Math.floor(Math.random() * kinds.length)]!;
-      const tall = kind === "spike" || kind === "icicle" || kind === "ember";
-      const w = tall
-        ? randRange(36, 70)
-        : randRange(OBSTACLES.minWidth, OBSTACLES.maxWidth);
-      const h = tall
-        ? randRange(34, 58)
-        : OBSTACLES.height + randRange(-2, 14);
-
-      const sideBias = Math.random();
-      let x: number;
-      if (sideBias < 0.3) x = WORLD.wallPadding + randRange(0, 50);
-      else if (sideBias > 0.7)
-        x = fieldW - WORLD.wallPadding - w - randRange(0, 50);
-      else x = randRange(WORLD.wallPadding, fieldW - WORLD.wallPadding - w);
-
-      this.obstacles.push({
-        id: ++this.obstacleId,
-        kind,
-        x,
-        y: this.nextObstacleY,
-        w,
-        h,
-        drift: randRange(-28, 28) * diff.obstacleSpeedMul,
-        bob: Math.random() * Math.PI * 2,
-        bobSpeed: randRange(1.2, 2.8),
-        spin: randRange(-1.2, 1.2),
-        warn: 1,
-      });
-
-      this.nextObstacleY += diff.obstacleSpacing * randRange(0.8, 1.25);
-    }
-
-    const cullY = this.cameraY - this.height - OBSTACLES.cullBelow;
-    this.obstacles = this.obstacles.filter((o) => o.y + o.h > cullY);
-  }
-
-  private ensurePickups() {
-    const top = this.player.y + OBSTACLES.spawnAhead;
-    const fieldW = this.playWidth();
-    const intensity = runIntensity(this.time);
-    // Scarcer shields as the run goes on
-    const spacingMul = 1 + intensity * 1.35;
-    while (this.nextPickupY < top) {
-      this.pickups.push({
-        id: ++this.pickupId,
-        x: randRange(WORLD.wallPadding + 30, fieldW - WORLD.wallPadding - 30),
-        y: this.nextPickupY,
-        r: PICKUPS.radius,
-        bob: Math.random() * Math.PI * 2,
-        kind: "shield",
-      });
-      this.nextPickupY += PICKUPS.spacing * spacingMul * randRange(0.85, 1.25);
-    }
-    const cullY = this.cameraY - this.height - 400;
-    this.pickups = this.pickups.filter((p) => p.y > cullY);
-  }
-
-  private spawnEnemies() {
-    if (this.player.y < ENEMIES.firstHeight) return;
-    if (this.time < this.nextEnemyAt) return;
-
-    const intensity = runIntensity(this.time);
-    const maxAlive = 1 + Math.floor(intensity * 1.5); // 1 → 2
-    if (this.enemies.length >= maxAlive) {
-      this.nextEnemyAt = this.time + 1.5;
-      return;
-    }
-
-    const diff = DIFFICULTIES[this.difficultyId];
-    const kind = this.enemyKind();
-    const fromLeft = Math.random() > 0.5;
-    const fieldW = this.playWidth();
-    const y = this.player.y + randRange(160, 300);
-
-    let w = 40;
-    let h = 40;
-    if (kind === "dragon") {
-      w = 64;
-      h = 38;
-    } else if (kind === "bear") {
-      w = 58;
-      h = 40;
-    } else {
-      w = 38;
-      h = 38;
-    }
-
-    const patrolDir: 1 | -1 = fromLeft ? 1 : -1;
-    this.enemies.push({
-      id: ++this.enemyId,
-      kind,
-      x: fromLeft ? -w - 10 : fieldW + 10,
-      y,
-      w,
-      h,
-      vx: fromLeft ? 70 : -70,
-      vy: 0,
-      facing: patrolDir,
-      patrolDir,
-      turnT: randRange(1.1, 2.2),
-      wanderX: randRange(WORLD.wallPadding + 40, fieldW - WORLD.wallPadding - w - 40),
-      age: 0,
-      state: "enter",
-      stateT: 0,
-    });
-
-    this.bannerText =
-      this.theme.id === "planetary"
-        ? "ALIEN INBOUND"
-        : this.theme.id === "antarctica"
-          ? "BEAR APPROACHING"
-          : "DRAGON INBOUND";
-    this.alertBanner = 1.6;
-    this.shake = Math.max(this.shake, 0.25);
-    this.audio?.onEnemyAppear?.();
-    const intervalMul = Math.max(0.4, 1 - intensity * 0.55);
-    this.nextEnemyAt =
-      this.time +
-      ENEMIES.baseInterval *
-        diff.enemySpawnMul *
-        intervalMul *
-        randRange(0.75, 1.1);
-  }
-
-  private updateObstacles(dt: number, speedMul: number) {
-    const fieldW = this.playWidth();
-    for (const o of this.obstacles) {
-      o.x += o.drift * dt * speedMul;
-      o.bob += o.bobSpeed * dt;
-      o.warn = Math.max(0, o.warn - dt * 0.7);
-      if (o.kind === "asteroid" || o.kind === "ember") {
-        o.spin += dt * 2.2;
-      }
-      if (o.x < WORLD.wallPadding) {
-        o.x = WORLD.wallPadding;
-        o.drift = Math.abs(o.drift);
-      } else if (o.x + o.w > fieldW - WORLD.wallPadding) {
-        o.x = fieldW - WORLD.wallPadding - o.w;
-        o.drift = -Math.abs(o.drift);
-      }
-    }
-  }
-
-  private updateEnemies(dt: number) {
-    const pcx = this.player.x + PLAYER.width / 2;
-    const pcy = this.player.y + PLAYER.height * 0.5;
-    const fieldW = this.playWidth();
-
-    for (const e of this.enemies) {
-      e.age += dt;
-      e.stateT += dt;
-
-      if (e.kind === "dragon") this.tickDragon(e, dt, pcx, pcy, fieldW);
-      else if (e.kind === "alien") this.tickAlien(e, dt, pcx, pcy, fieldW);
-      else this.tickBear(e, dt, pcx, pcy, fieldW);
-    }
-
-    const cullY = this.cameraY - this.height - ENEMIES.cullBelow;
-    this.enemies = this.enemies.filter(
-      (e) => e.y + e.h > cullY && e.x > -220 && e.x < fieldW + 220,
-    );
-  }
-
-  /** Flip left/right and pick a new cross-field lane */
-  private retargetEnemyLane(
-    e: Enemy,
-    fieldW: number,
-    smart: number,
-    playerCx: number,
-  ) {
-    const pad = WORLD.wallPadding + 24;
-    const hitL = e.x <= pad;
-    const hitR = e.x + e.w >= fieldW - pad;
-    if (hitL) e.patrolDir = 1;
-    else if (hitR) e.patrolDir = -1;
-    else e.patrolDir = Math.random() > 0.5 ? 1 : -1;
-
-    // Easy mostly wanders; Hard often cuts toward the player
-    const chaseChance = clamp(0.12 + smart * 0.38, 0.12, 0.85);
-    if (Math.random() < chaseChance) {
-      e.wanderX = clamp(playerCx - e.w / 2, pad, fieldW - pad - e.w);
-    } else {
-      e.wanderX = randRange(pad, fieldW - pad - e.w);
-    }
-    e.facing = e.patrolDir;
-    // Dumb = slower turns / longer lanes; smart = retargets faster
-    e.turnT = randRange(1.4, 3.2) / Math.max(0.45, smart * 0.9);
-  }
-
-  private tickDragon(
-    e: Enemy,
-    dt: number,
-    pcx: number,
-    pcy: number,
-    fieldW: number,
-  ) {
-    const smart = enemySmartMul(this.difficultyId);
-    const spd = enemySpeedMul(this.difficultyId);
-    const pad = WORLD.wallPadding + 20;
-
-    if (e.state === "enter") {
-      e.x = lerp(e.x, e.wanderX, 1 - Math.pow(0.018 * smart * spd, dt));
-      e.y = lerp(e.y, pcy + 120, 1 - Math.pow(0.022 * smart * spd, dt));
-      e.facing = e.patrolDir;
-      if (e.stateT > 1.8 / Math.max(0.5, smart)) {
-        e.state = "patrol";
-        e.stateT = 0;
-        e.turnT = randRange(1.0, 2.0);
-      }
-    } else if (e.state === "patrol") {
-      e.turnT -= dt;
-      if (e.turnT <= 0 || e.x <= pad || e.x + e.w >= fieldW - pad) {
-        this.retargetEnemyLane(e, fieldW, smart, pcx);
-        // Hard: keep correcting toward player lane
-        if (smart > 1.2) {
-          e.wanderX = lerp(e.wanderX, pcx - e.w / 2, 0.4 * (smart - 1));
-          e.wanderX = clamp(e.wanderX, pad, fieldW - pad - e.w);
-        }
-      }
-
-      const speed =
-        (42 + smart * 16) * spd * (0.85 + Math.abs(Math.sin(e.age * 0.45)) * 0.2);
-      e.x += e.patrolDir * speed * dt;
-      e.x = lerp(e.x, e.wanderX, 1 - Math.pow(0.035 * spd, dt));
-      e.x = clamp(e.x, pad, fieldW - pad - e.w);
-      e.facing = e.patrolDir;
-
-      const hoverY = pcy + (130 - smart * 12) + Math.sin(e.age * 1.0 + e.id) * 12;
-      e.y = lerp(e.y, hoverY, 1 - Math.pow(0.035, dt));
-
-      // Easy attacks rarely; Hard attacks often
-      if (e.stateT > (3.4 - smart * 0.7) / Math.max(0.55, smart)) {
-        e.state = "attack";
-        e.stateT = 0;
-        // Easy: weak aim; Hard: locks onto player
-        const aimBias = smart < 0.7 ? randRange(-120, 120) : 0;
-        e.facing = (Math.sign(pcx + aimBias - (e.x + e.w / 2)) ||
-          e.patrolDir) as 1 | -1;
-        const ecx = e.x + e.w / 2;
-        const ecy = e.y + e.h * 0.4;
-        const dx = pcx + aimBias - ecx;
-        const dy = pcy - ecy;
-        const len = Math.hypot(dx, dy) || 1;
-        const shotSpeed = (85 + smart * 25) * spd;
-        this.projectiles.push({
-          id: ++this.projId,
-          x: ecx - 7,
-          y: ecy - 7,
-          w: 14,
-          h: 14,
-          vx: (dx / len) * shotSpeed,
-          vy: (dy / len) * shotSpeed,
-          life: 2.6,
-          kind: "fireball",
-        });
-        if (smart > 1.35 && Math.random() > 0.4) {
-          this.projectiles.push({
-            id: ++this.projId,
-            x: ecx - 7,
-            y: ecy - 7,
-            w: 12,
-            h: 12,
-            vx: (dx / len) * shotSpeed * 0.85 + randRange(-30, 30),
-            vy: (dy / len) * shotSpeed * 0.85,
-            life: 2.4,
-            kind: "fireball",
-          });
-        }
-        this.burstParticles(ecx, ecy, 6, this.theme.dangerGlow);
-      }
-    } else if (e.state === "attack") {
-      e.x += e.facing * (55 * smart * spd) * dt;
-      e.y -= (32 + smart * 10) * spd * dt;
-      if (e.stateT > 0.65 / Math.min(smart, 1.25)) {
-        e.state = "recover";
-        e.stateT = 0;
-        e.patrolDir = (-e.facing || -1) as 1 | -1;
-        e.facing = e.patrolDir;
-        e.wanderX = randRange(pad, fieldW - pad - e.w);
-      }
-    } else {
-      e.x = lerp(e.x, e.wanderX, 1 - Math.pow(0.025 * spd, dt));
-      e.y = lerp(e.y, pcy + 140, 1 - Math.pow(0.025 * spd, dt));
-      e.facing = e.patrolDir;
-      if (e.stateT > 1.8 / Math.max(0.55, smart)) {
-        e.state = "patrol";
-        e.stateT = 0;
-        e.turnT = randRange(0.9, 1.8);
-      }
-    }
-  }
-
-  private tickAlien(
-    e: Enemy,
-    dt: number,
-    pcx: number,
-    pcy: number,
-    fieldW: number,
-  ) {
-    const smart = enemySmartMul(this.difficultyId);
-    const spd = enemySpeedMul(this.difficultyId);
-    const pad = WORLD.wallPadding + 20;
-
-    if (e.state === "enter") {
-      e.x = lerp(e.x, e.wanderX, 1 - Math.pow(0.022 * smart * spd, dt));
-      e.y = lerp(e.y, pcy + 100, 1 - Math.pow(0.028 * spd, dt));
-      if (e.stateT > 1.7 / Math.max(0.5, smart)) {
-        e.state = "patrol";
-        e.stateT = 0;
-        e.turnT = randRange(1.0, 2.0);
-      }
-    } else if (e.state === "patrol") {
-      e.turnT -= dt;
-      if (e.turnT <= 0 || e.x <= pad || e.x + e.w >= fieldW - pad) {
-        this.retargetEnemyLane(e, fieldW, smart, pcx);
-      }
-
-      const speed = 36 * smart * spd;
-      e.x += e.patrolDir * speed * dt;
-      e.x = lerp(e.x, e.wanderX, 1 - Math.pow(0.04 * spd, dt));
-      e.x = clamp(e.x, pad, fieldW - pad - e.w);
-      e.facing = e.patrolDir;
-
-      const hoverY = pcy + (110 - smart * 10) + Math.sin(e.age * 1.2 + e.id) * 9;
-      e.y = lerp(e.y, hoverY, 1 - Math.pow(0.04, dt));
-
-      if (e.stateT > (3.1 - smart * 0.6) / Math.max(0.55, smart)) {
-        e.state = "attack";
-        e.stateT = 0;
-        e.facing = e.patrolDir;
-        const ecx = e.x + e.w / 2;
-        const ecy = e.y + e.h / 2;
-        const bolts = smart > 1.4 ? 3 : smart > 0.9 ? 2 : 1;
-        const aimSlip = smart < 0.7 ? randRange(-80, 80) : 0;
-        for (let i = 0; i < bolts; i++) {
-          const spread = bolts === 1 ? 0 : (i - (bolts - 1) / 2) * 45;
-          this.projectiles.push({
-            id: ++this.projId,
-            x: ecx - 6,
-            y: ecy - 6,
-            w: 12,
-            h: 12,
-            vx: (pcx + aimSlip - ecx) * (0.14 * smart) + spread,
-            vy: -(75 + smart * 20) * spd,
-            life: 2.4,
-            kind: "plasma",
-          });
-        }
-      }
-    } else if (e.state === "attack") {
-      e.x += e.patrolDir * (65 * smart * spd) * dt;
-      e.y += Math.sin(e.age * 2.5) * 4 * dt;
-      if (e.stateT > 0.7 / Math.min(smart, 1.25)) {
-        e.state = "recover";
-        e.stateT = 0;
-        e.patrolDir = (-e.patrolDir || 1) as 1 | -1;
-        e.facing = e.patrolDir;
-        e.wanderX = randRange(pad, fieldW - pad - e.w);
-      }
-    } else {
-      e.x = lerp(e.x, e.wanderX, 1 - Math.pow(0.028 * spd, dt));
-      e.y += this.player.vy * 0.28 * dt;
-      e.facing = e.patrolDir;
-      if (e.stateT > 1.7 / Math.max(0.55, smart)) {
-        e.state = "patrol";
-        e.stateT = 0;
-        e.turnT = randRange(0.8, 1.6);
-      }
-    }
-  }
-
-  private tickBear(
-    e: Enemy,
-    dt: number,
-    pcx: number,
-    pcy: number,
-    fieldW: number,
-  ) {
-    const smart = enemySmartMul(this.difficultyId);
-    const spd = enemySpeedMul(this.difficultyId);
-    const pad = WORLD.wallPadding + 16;
-
-    if (e.state === "enter") {
-      e.x = lerp(e.x, e.wanderX, 1 - Math.pow(0.025 * smart * spd, dt));
-      e.y = lerp(e.y, this.player.y + 18, 1 - Math.pow(0.032 * smart * spd, dt));
-      e.facing = e.patrolDir;
-      if (e.stateT > 1.6 / Math.max(0.5, smart)) {
-        e.state = "patrol";
-        e.stateT = 0;
-        e.turnT = randRange(1.3, 2.4);
-      }
-    } else if (e.state === "patrol") {
-      e.turnT -= dt;
-      if (e.turnT <= 0 || e.x <= pad || e.x + e.w >= fieldW - pad) {
-        this.retargetEnemyLane(e, fieldW, smart, pcx);
-        // Easy bears pace aimlessly; Hard commits to a direction less randomly
-        if (Math.random() < (smart < 0.7 ? 0.7 : 0.4)) {
-          e.patrolDir = (-e.patrolDir || 1) as 1 | -1;
-          e.facing = e.patrolDir;
-        }
-      }
-
-      const speed = 22 * smart * spd;
-      e.x += e.patrolDir * speed * dt;
-      e.x = lerp(e.x, e.wanderX, 1 - Math.pow(0.028 * spd, dt));
-      e.x = clamp(e.x, pad, fieldW - pad - e.w);
-      e.facing = e.patrolDir;
-      e.y = lerp(e.y, this.player.y + 14, 1 - Math.pow(0.04, dt));
-
-      const chargeRange = 55 + smart * 35;
-      if (
-        e.stateT > (2.8 - smart * 0.5) / Math.max(0.55, smart) &&
-        Math.abs(e.y - this.player.y) < chargeRange
-      ) {
-        e.state = "attack";
-        e.stateT = 0;
-        const aimSlip = smart < 0.7 ? randRange(-90, 90) : 0;
-        e.facing = (Math.sign(pcx + aimSlip - (e.x + e.w / 2)) ||
-          e.patrolDir) as 1 | -1;
-        e.patrolDir = e.facing;
-        e.vx = e.facing * (110 * smart * spd);
-      }
-    } else if (e.state === "attack") {
-      e.x += e.vx * dt;
-      e.vx *= 1 - dt * (1.8 / Math.max(0.6, smart));
-      e.y += this.player.vy * 0.18 * dt;
-      if (e.stateT > 0.7 / Math.min(smart, 1.25)) {
-        e.state = "recover";
-        e.stateT = 0;
-        e.patrolDir = (-e.facing || -1) as 1 | -1;
-        e.facing = e.patrolDir;
-        e.wanderX = randRange(pad, fieldW - pad - e.w);
-        e.turnT = randRange(1.0, 2.0);
-      }
-    } else {
-      e.x = lerp(e.x, e.wanderX, 1 - Math.pow(0.025 * spd, dt));
-      e.y += this.player.vy * 0.32 * dt;
-      e.facing = e.patrolDir;
-      if (e.stateT > 1.8 / Math.max(0.55, smart)) {
-        e.state = "patrol";
-        e.stateT = 0;
-      }
-    }
-  }
-
-  private spawnFallingHazards() {
-    if (this.time < this.nextFallAt) return;
-    const fieldW = this.playWidth();
-    const speed = randRange(FALLING.speedMin, FALLING.speedMax);
-    // Spawn above the camera / player
-    const y = this.player.y + this.height * 0.75 + randRange(40, 160);
-    const x = randRange(WORLD.wallPadding + 20, fieldW - WORLD.wallPadding - 40);
-
-    if (this.theme.id === "volcanic") {
-      this.projectiles.push({
-        id: ++this.projId,
-        x,
-        y,
-        w: 18,
-        h: 18,
-        vx: randRange(-30, 30),
-        vy: -speed,
-        life: 5,
-        kind: "fall_fire",
-      });
-    } else if (this.theme.id === "planetary") {
-      const s = randRange(20, 34);
-      this.projectiles.push({
-        id: ++this.projId,
-        x,
-        y,
-        w: s,
-        h: s,
-        vx: randRange(-40, 40),
-        vy: -speed * 0.9,
-        life: 5.5,
-        kind: "fall_asteroid",
-        spin: randRange(-3, 3),
-      });
-    } else {
-      // Slim ice droplets — sometimes a small cluster
-      const count = Math.random() > 0.55 ? 3 : 1;
-      for (let i = 0; i < count; i++) {
-        this.projectiles.push({
-          id: ++this.projId,
-          x: x + i * 16 + randRange(-6, 6),
-          y: y + randRange(0, 40),
-          w: 6,
-          h: 16,
-          vx: randRange(-12, 12),
-          vy: -speed * 1.15,
-          life: 4.5,
-          kind: "fall_ice",
-        });
-      }
-    }
-
-    const diff = DIFFICULTIES[this.difficultyId];
-    this.nextFallAt =
-      this.time +
-      FALLING.baseInterval *
-        (diff.id === "hard" ? 0.75 : diff.id === "easy" ? 1.25 : 1) *
-        randRange(0.85, 1.2);
-  }
-
-  private updateProjectiles(dt: number) {
-    for (const p of this.projectiles) {
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      p.life -= dt;
-      if (p.spin != null) p.spin += dt * 2.5;
-      if (p.kind === "plasma") p.vy += 40 * dt;
-      if (p.kind === "icechunk") p.vy -= 30 * dt;
-      // Falling hazards accelerate slightly downward (world -y)
-      if (
-        p.kind === "fall_fire" ||
-        p.kind === "fall_asteroid" ||
-        p.kind === "fall_ice"
-      ) {
-        p.vy -= 40 * dt;
-      }
-    }
-    const cullY = this.cameraY - this.height - 200;
-    this.projectiles = this.projectiles.filter(
-      (p) => p.life > 0 && p.y > cullY,
-    );
-  }
-
-  private updatePickups(dt: number) {
-    for (const p of this.pickups) p.bob += dt * 4;
-  }
-
-  private playerRect() {
-    return {
-      x: this.player.x + 4,
-      y: this.player.y,
-      w: PLAYER.width - 8,
-      h: PLAYER.height - 4,
-    };
-  }
-
-  private obstacleRect(o: Obstacle) {
-    const bobY = Math.sin(o.bob) * (o.kind === "asteroid" ? 10 : 5);
-    return { x: o.x, y: o.y + bobY, w: o.w, h: o.h };
-  }
-
-  private resolveObstacleHits() {
-    if (this.player.invuln > 0) return;
-    const pr = this.playerRect();
-    for (const o of this.obstacles) {
-      if (!aabb(pr, this.obstacleRect(o))) continue;
-      this.takeHit("obstacle");
-      const mid = o.x + o.w / 2;
-      const push = this.player.x + PLAYER.width / 2 < mid ? -1 : 1;
-      this.player.vx = push * 240;
-      this.player.y += 40;
-      break;
-    }
-  }
-
-  private resolveEnemyHits() {
-    if (this.player.invuln > 0) return;
-    const pr = this.playerRect();
-    for (const e of this.enemies) {
-      if (!aabb(pr, { x: e.x + 6, y: e.y + 4, w: e.w - 12, h: e.h - 8 })) continue;
-      this.takeHit("enemy");
-      this.player.vx = -e.facing * 200;
-      this.player.y += 50;
-      break;
-    }
-  }
-
-  private resolveProjectileHits() {
-    if (this.player.invuln > 0) return;
-    const pr = this.playerRect();
-    for (let i = this.projectiles.length - 1; i >= 0; i--) {
-      const p = this.projectiles[i]!;
-      if (!aabb(pr, p)) continue;
-      this.takeHit("projectile");
-      this.burstParticles(p.x + p.w / 2, p.y + p.h / 2, 14, this.theme.dangerSurface);
-      this.projectiles.splice(i, 1);
-      break;
-    }
-  }
-
-  private resolvePickupCollect() {
-    const pr = this.playerRect();
-    for (let i = this.pickups.length - 1; i >= 0; i--) {
-      const p = this.pickups[i]!;
-      const rect = {
-        x: p.x - p.r,
-        y: p.y - p.r + Math.sin(p.bob) * 6,
-        w: p.r * 2,
-        h: p.r * 2,
-      };
-      if (!aabb(pr, rect)) continue;
-      this.pickups.splice(i, 1);
-      if (this.shields < this.modifiers.maxShields) {
-        this.shields += 1;
-        this.collectFlash = 0.35;
-        this.audio?.onShieldPickup?.();
-        this.burstParticles(p.x, p.y, 18, "#ffe08a");
-        this.burstParticles(p.x, p.y, 10, this.theme.accent);
-      } else {
-        this.collectFlash = 0.2;
-        this.burstParticles(p.x, p.y, 10, "#ffffff");
-      }
-    }
-  }
-
-  private resolveDangerHit() {
-    if (this.player.invuln > 0) return;
-    const feet = this.player.y;
-    const surface =
-      this.dangerY + Math.sin(this.time * DANGER.waveFreq) * DANGER.waveAmp;
-    if (feet <= surface + 8) {
-      this.takeHit("danger");
-      // Shove rising danger far below so the next two hits aren't instant
-      this.dangerY = this.player.y - DANGER.hitPushback;
-      this.dangerReliefT = DANGER.reliefTime;
-      this.player.y += PLAYER.lavaKnock;
-      this.player.boostT = Math.max(this.player.boostT, 0.22);
-      this.burstParticles(
-        this.player.x + PLAYER.width / 2,
-        this.dangerY + 20,
-        14,
-        this.theme.dangerSurface,
-      );
-    }
-  }
-
-  private takeHit(_source: string) {
-    if (this.player.invuln > 0 || this.phase !== "playing") return;
-    this.shields -= 1;
-    this.hitsTaken += 1;
-    this.player.invuln = PLAYER.hitInvuln;
-    this.shake = 0.6;
-    this.hitFlash = 0.28;
-    this.audio?.onHit?.();
-    this.burstParticles(
-      this.player.x + PLAYER.width / 2,
-      this.player.y + 10,
-      18,
-      this.theme.dangerGlow,
-    );
-
-    if (this.shields <= 0) {
-      this.shields = 0;
-      this.phase = "gameover";
-      this.audio?.onGameOver?.();
-      this.emitHud(true);
-      this.burstParticles(
-        this.player.x + PLAYER.width / 2,
-        this.player.y + 16,
-        32,
-        this.theme.accent,
-      );
-    }
-  }
-
-  /** Legendary one-shot: clear shots, shove the rise using existing hitPushback. */
-  private triggerTsunami() {
-    const green = "#00C805";
-    for (const p of this.projectiles) {
-      this.burstParticles(p.x + p.w / 2, p.y + p.h / 2, 8, green);
-      this.burstParticles(p.x + p.w / 2, p.y + p.h / 2, 5, "#ffffff");
-    }
-    this.projectiles = [];
-    this.dangerY = this.player.y - DANGER.hitPushback;
-    this.dangerReliefT = DANGER.reliefTime;
-    this.shake = Math.max(this.shake, 0.75);
-    this.bannerText = "TSUNAMI";
-    this.alertBanner = 1.5;
-    this.burstParticles(
-      this.player.x + PLAYER.width / 2,
-      this.dangerY + 24,
-      28,
-      green,
-    );
-    this.burstParticles(
-      this.player.x + PLAYER.width / 2,
-      this.player.y - 10,
-      18,
-      this.theme.dangerGlow,
-    );
-    this.audio?.onTsunami?.();
-  }
-
-  /** Close pass by an obstacle / enemy / projectile without colliding. */
-  private detectNearMiss() {
-    if (this.nearMissCd > 0 || this.player.invuln > 0) return;
-    const pr = this.playerRect();
-    const bodies: { x: number; y: number; w: number; h: number }[] = [
-      ...this.obstacles.map((o) => this.obstacleRect(o)),
-      ...this.enemies,
-      ...this.projectiles,
-    ];
-    for (const r of bodies) {
-      if (aabb(pr, r)) continue;
-      const gap = this.gapToRect(pr, r);
-      if (gap > 0 && gap < 18) {
-        this.nearMissCd = 0.55;
-        this.nearMissCount += 1;
-        this.audio?.onNearMiss?.();
-        break;
-      }
-    }
-  }
-
-  private gapToRect(
-    pr: { x: number; y: number; w: number; h: number },
-    r: { x: number; y: number; w: number; h: number },
-  ) {
-    const dx = Math.abs(pr.x + pr.w / 2 - (r.x + r.w / 2)) - (pr.w + r.w) * 0.5;
-    const dy = Math.abs(pr.y + pr.h / 2 - (r.y + r.h / 2)) - (pr.h + r.h) * 0.5;
-    return Math.max(dx, dy);
   }
 
   private burstParticles(x: number, y: number, count: number, color: string) {
@@ -1289,7 +579,7 @@ export class Game {
     if (this.particles.length >= cap) return;
     if (Math.random() > dt * (16 + this.threatPulse * 20)) return;
     this.particles.push({
-      x: randRange(0, this.playWidth()),
+      x: randRange(0, this.width),
       y: this.dangerY + randRange(0, 40),
       vx: randRange(-20, 20),
       vy: randRange(40, 120),
@@ -1313,61 +603,10 @@ export class Game {
     this.hudAcc += force ? 1 : 0.016;
     if (!force && this.hudAcc < 0.1) return;
     this.hudAcc = 0;
-    this.onHud?.({
-      phase: this.phase,
-      shields: this.shields,
-      maxShields: this.modifiers.maxShields,
-      timeSurvived: this.time,
-      height: Math.max(0, this.player.y),
-      themeName: this.theme.name,
-      boostReady: this.player.boostCd <= 0,
-      dangerProximity: this.computeDangerProximity(),
-      threatLevel: this.threatPulse,
-      intensity: runIntensity(this.time),
-      dangerLabel: THEME_META[this.theme.id].dangerLabel,
-      sinkStage: this.sinkStage,
-      nearMisses: this.nearMissCount,
-      hitsTaken: this.hitsTaken,
-      freezeReady:
-        this.freezeCharges > 0 &&
-        this.freezeT <= 0 &&
-        this.modifiers.freezeDuration > 0,
-      freezeActive: this.freezeT > 0,
-      tsunamiReady: this.tsunamiCharges > 0,
-    });
+    this.onHud?.(this.sim.hudSnapshot());
   }
 
-  /**
-   * How close the rise is to the player in camera space.
-   * Fills as magma/gas/ice approaches the bottom of the view / your feet.
-   */
-  private computeDangerProximity() {
-    const surface =
-      this.dangerY + Math.sin(this.time * DANGER.waveFreq) * DANGER.waveAmp;
-    const dangerSy = this.worldToScreen(surface);
-    const playerSy = this.worldToScreen(this.player.y);
-    // Screen px from player down to the rise (larger = safer)
-    const screenDist = dangerSy - playerSy;
-    // ~full view height below you ≈ empty; near your feet ≈ full
-    const span = Math.max(280, this.height * 0.95);
-    return clamp(1 - screenDist / span, 0, 1);
-  }
-
-  /** Place the rise so the proximity bar reads approximately `proximity`. */
-  private setDangerProximity(proximity: number) {
-    const p = clamp(proximity, 0, 1);
-    const span = Math.max(280, this.height * 0.95);
-    const screenDist = span * (1 - p);
-    const wave =
-      Math.sin(this.time * DANGER.waveFreq) * DANGER.waveAmp;
-    this.dangerY = this.player.y - screenDist - wave;
-  }
-
-  // --- Rendering -----------------------------------------------------------
-
-  private worldToScreen(y: number) {
-    return this.cameraY - y + this.height * 0.55;
-  }
+  // --- Rendering ------------------------------------------------------------
 
   private draw() {
     const ctx = this.ctx;

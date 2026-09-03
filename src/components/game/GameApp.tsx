@@ -19,6 +19,7 @@ import type {
   ThemeId,
 } from "@/game/types";
 import { runModifiersForMode } from "@/game/traits";
+import type { RunRecord } from "@/game/engine/Game";
 import { useWalletSession } from "@/web3/hooks/useWalletSession";
 import { usePlayerRegistry } from "@/web3/hooks/usePlayerRegistry";
 import {
@@ -28,7 +29,7 @@ import {
 } from "@/web3/loopiterns/equip";
 import { useLoopiternsInventory } from "@/web3/loopiterns/useLoopiternsInventory";
 import { useLoopiternsSupply } from "@/web3/loopiterns/useLoopiternsSupply";
-import { requestRunSeed } from "@/web3/loopiterns/runSeed";
+import { requestRunSession, type RunSession } from "@/web3/loopiterns/runSession";
 import {
   recordGuestNormalBest,
   recordNormalBest,
@@ -99,11 +100,14 @@ export default function GameApp() {
   const [runKey, setRunKey] = useState(0);
   const [hud, setHud] = useState<HudSnapshot>(INITIAL_HUD);
   const [restartToken, setRestartToken] = useState(0);
-  // P2M run-seed attestation: the server stamps a seed at run start and
-  // the voucher route later requires real elapsed time ≥ the rarity gate.
-  // Null while fetching or if the seed route is unreachable — the run
-  // still plays, and the mint surfaces the server error if attempted.
-  const [runSeedId, setRunSeedId] = useState<string | null>(null);
+  // P2M replay attestation: the server pins a session (seed + theme) at run
+  // start; the client plays the deterministic sim seeded with it and records
+  // every input. At mint time the server replays the record through the
+  // identical sim — a run that didn't really survive the gate gets no
+  // voucher. Null session/record (offline / 503) leaves the run playable
+  // with the mint honestly disabled.
+  const [runSession, setRunSession] = useState<RunSession | null>(null);
+  const [runRecord, setRunRecord] = useState<RunRecord | null>(null);
   const [paused, setPaused] = useState(false);
   const [newBest, setNewBest] = useState(false);
   const [previousBest, setPreviousBest] = useState(0);
@@ -116,6 +120,11 @@ export default function GameApp() {
       return next;
     });
     if (next.phase === "gameover") setPaused(false);
+  }, []);
+
+  /** P2M: the Game hands over the finished run's replayable record on death. */
+  const handleRunRecord = useCallback((rec: RunRecord) => {
+    setRunRecord(rec);
   }, []);
 
   useEffect(() => {
@@ -201,43 +210,52 @@ export default function GameApp() {
     [address],
   );
 
+  const beginRun = useCallback(
+    (launchedThemeId: ThemeId) => {
+      const theme = getTheme(launchedThemeId);
+      const rarity = mode === "normal" ? equipped?.rarity ?? null : null;
+      const mods = runModifiersForMode(mode, rarity);
+      recordedRef.current = false;
+      setNewBest(false);
+      setPreviousBest(0);
+      setRunRecord(null);
+      setHud({
+        ...INITIAL_HUD,
+        shields: mods.maxShields,
+        maxShields: mods.maxShields,
+        themeName: theme.name,
+        dangerLabel: THEME_META[launchedThemeId].dangerLabel,
+        freezeReady: mods.freezeCharges > 0 && mods.freezeDuration > 0,
+        freezeActive: false,
+        tsunamiReady: mods.tsunamiCharges > 0,
+      });
+      setRunThemeId(launchedThemeId);
+      setRestartToken(0);
+      setPaused(false);
+      setRunKey((k) => k + 1);
+      setScreen("playing");
+    },
+    [equipped, mode],
+  );
+
   const launchRun = useCallback(() => {
     if (mode === "p2e") return;
     if (mode === "p2m" && supply.soldOut) return;
-    // P2M: ask the server to stamp this run. Fire-and-forget — the game
-    // plays fine without it; minting without it fails honestly server-side.
     if (mode === "p2m") {
-      setRunSeedId(null);
-      void requestRunSeed().then(setRunSeedId);
+      // Wait for the session before the first tick — the run must be seeded
+      // (and recorded) from tick 0 for the server's replay to accept it.
+      // The server pins the hourly theme with the session, so an hour
+      // rollover between click and issue can't desync the replay.
+      setRunSession(null);
+      void requestRunSession(address).then((s) => {
+        setRunSession(s);
+        beginRun(s ? s.themeId : p2mThemeId);
+      });
     } else {
-      setRunSeedId(null);
+      setRunSession(null);
+      beginRun(themeId);
     }
-    // P2M locks the UTC-hour theme so every mint run in the same hour
-    // climbs the same world; Normal honors the picker. Locked at launch
-    // so a rollover mid-run cannot flip the live world.
-    const launchedThemeId = mode === "p2m" ? p2mThemeId : themeId;
-    const theme = getTheme(launchedThemeId);
-    const rarity = mode === "normal" ? equipped?.rarity ?? null : null;
-    const mods = runModifiersForMode(mode, rarity);
-    recordedRef.current = false;
-    setNewBest(false);
-    setPreviousBest(0);
-    setHud({
-      ...INITIAL_HUD,
-      shields: mods.maxShields,
-      maxShields: mods.maxShields,
-      themeName: theme.name,
-      dangerLabel: THEME_META[launchedThemeId].dangerLabel,
-      freezeReady: mods.freezeCharges > 0 && mods.freezeDuration > 0,
-      freezeActive: false,
-      tsunamiReady: mods.tsunamiCharges > 0,
-    });
-    setRunThemeId(launchedThemeId);
-    setRestartToken(0);
-    setPaused(false);
-    setRunKey((k) => k + 1);
-    setScreen("playing");
-  }, [equipped, mode, p2mThemeId, supply.soldOut, themeId]);
+  }, [address, beginRun, mode, p2mThemeId, supply.soldOut, themeId]);
 
   const startRun = useCallback(() => {
     if (mode === "p2e") return;
@@ -250,14 +268,21 @@ export default function GameApp() {
     recordedRef.current = false;
     setNewBest(false);
     setPaused(false);
-    // A restart is a NEW run — fresh seed so the clock honestly restarts.
     if (mode === "p2m") {
-      setRunSeedId(null);
-      void requestRunSeed().then(setRunSeedId);
+      // A restart is a NEW run — fetch the fresh session (new seed, new
+      // clock) BEFORE resetting the Game, so the replayed world and the
+      // recorded inputs always match.
+      setRunRecord(null);
+      void requestRunSession(address).then((s) => {
+        setRunSession(s);
+        inputRef.current?.requestRestart();
+        setRestartToken((n) => n + 1);
+      });
+    } else {
+      inputRef.current?.requestRestart();
+      setRestartToken((n) => n + 1);
     }
-    inputRef.current?.requestRestart();
-    setRestartToken((n) => n + 1);
-  }, [mode]);
+  }, [address, mode]);
 
   const backToMenu = useCallback(() => {
     audio.sfx("click");
@@ -363,6 +388,8 @@ export default function GameApp() {
             mode={mode}
             equippedRarity={equippedRarity}
             equippedTokenId={equippedTokenId}
+            sessionSeed={runSession?.seed ?? null}
+            onRunRecord={mode === "p2m" ? handleRunRecord : undefined}
           />
           <GameHUD
             hud={hud}
@@ -376,7 +403,8 @@ export default function GameApp() {
             onRestart={restart}
             onMenu={backToMenu}
             touchControls={coarsePointer}
-            runSeedId={runSeedId}
+            runSessionId={runSession?.sessionId ?? null}
+            runRecord={runRecord}
           />
           <VirtualPad
             inputRef={inputRef}

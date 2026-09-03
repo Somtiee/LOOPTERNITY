@@ -11,6 +11,7 @@ import {
 } from "@/game/mintTiers";
 import { formatSurvivalTime } from "@/game/score";
 import type { GameMode, HudSnapshot } from "@/game/types";
+import type { RunRecord } from "@/game/engine/Game";
 import { ConnectWalletButton } from "@/components/web3/ConnectWalletButton";
 import { CHAIN_SWITCH_LABEL } from "@/web3/config";
 import { useWalletSession } from "@/web3/hooks/useWalletSession";
@@ -43,8 +44,10 @@ type GameHUDProps = {
   onRestart: () => void;
   onMenu: () => void;
   touchControls?: boolean;
-  /** Server-issued run seed for this P2M run (voucher attestation). */
-  runSeedId?: string | null;
+  /** Server-issued run session id for this P2M run (replay attestation). */
+  runSessionId?: string | null;
+  /** The finished run's recorded input log (produced by the deterministic sim). */
+  runRecord?: RunRecord | null;
 };
 
 function HudIconBtn({
@@ -96,12 +99,17 @@ function formatMintRemaining(
 
 function P2mMintBlock({
   timeSurvived,
-  runSeedId,
+  runSessionId,
+  runRecord,
 }: {
   timeSurvived: number;
-  runSeedId: string | null;
+  runSessionId: string | null;
+  runRecord: RunRecord | null;
 }) {
   const { hasWallet, onRobinhood } = useWalletSession();
+  // The record's clock is the sim's exact time at death — the value the
+  // server's replay must reproduce within tolerance.
+  const claimTime = runRecord?.timeSurvived ?? timeSurvived;
   const {
     configured,
     loading,
@@ -117,8 +125,8 @@ function P2mMintBlock({
     explorerTxUrl,
     mint,
     refetchInventory,
-  } = useMintLoopitern(timeSurvived, runSeedId);
-  const next = nextRarityGate(timeSurvived);
+  } = useMintLoopitern(claimTime, runSessionId, runRecord);
+  const next = nextRarityGate(claimTime);
   const dropped = Boolean(
     unlocked && willMint && willMint.id !== unlocked.id,
   );
@@ -161,9 +169,9 @@ function P2mMintBlock({
     disableReason = `Wrong network — tap the button above to switch to ${CHAIN_SWITCH_LABEL}.`;
   } else if (ownedCount >= MAX_LOOPITERNS_PER_WALLET) {
     disableReason = "MINT LIMIT REACHED — 5/5 LOOPITERNS";
-  } else if (!runSeedId) {
-    // Seed fetch failed at run start (offline / 503). Restarting the run
-    // gets a fresh seed — better than a dead button with no explanation.
+  } else if (!runSessionId || !runRecord) {
+    // Session or record missing (offline / 503 / unattested run). Restarting
+    // gets a fresh attested run — better than a dead button with no explanation.
     disableReason = "Run not attested — hit NEW for a fresh run, then mint.";
   }
 
@@ -227,9 +235,9 @@ function P2mMintBlock({
         </p>
       ) : null}
       <p className="mt-1.5 text-[10px] leading-relaxed text-white/40">
-        LOOPITERNS cannot be used in P2M — equip in Normal only. Vouchers are
-        attested server-side: the run clock starts on the server, so playing
-        is the only way in. Chain checks price, supply, and the 5-cap.
+        LOOPITERNS cannot be used in P2M — equip in Normal only. The server
+        replays your recorded run before signing: playing is the only way in.
+        Chain checks price, supply, and the 5-cap.
       </p>
       <div className="mt-3 flex justify-center">
         <ConnectWalletButton size="sm" />
@@ -324,7 +332,8 @@ export function GameHUD({
   onRestart,
   onMenu,
   touchControls = false,
-  runSeedId = null,
+  runSessionId = null,
+  runRecord = null,
 }: GameHUDProps) {
   const showOverlay = paused && hud.phase !== "gameover";
   const p2mUnlocked =
@@ -574,7 +583,8 @@ export function GameHUD({
             {mode === "p2m" ? (
               <P2mMintBlock
                 timeSurvived={hud.timeSurvived}
-                runSeedId={runSeedId}
+                runSessionId={runSessionId}
+                runRecord={runRecord}
               />
             ) : null}
             <button

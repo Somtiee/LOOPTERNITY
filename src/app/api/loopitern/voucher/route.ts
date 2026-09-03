@@ -2,28 +2,34 @@
  * LOOPITERNS mint voucher signer (v2 voucher-gated mint).
  *
  * POST /api/loopitern/voucher
- *   body: { address, rarity, timeSurvived, seedId }
+ *   body: { address, rarity, timeSurvived, sessionId, inputLog }
  *   →     { deadline, nonce, signature }
  *
- * The client survival time is spoofable, so the chain now requires a
- * server-signed voucher. This route checks the claimed survival time
- * against the rarity gates (30/60/90/120/150s) — the same gates the
- * client honors — AND requires a run seed from POST
- * /api/loopitern/run-seed: the seed is created at run start, and real
- * wall-clock time (server-measured) must have passed since, at least
- * minSeconds for the rarity being minted. Console spoofing of
- * timeSurvived alone buys nothing. The voucher itself is EIP-712 bound
- * to (minter, rarity, deadline, nonce, chainId, contract); the
- * contract's ecrecover check plus the single-use nonce makes it
- * unforgeable and unreplayable.
+ * The client survival time is spoofable, so the chain requires a
+ * server-signed voucher. Three server-side gates stand between a claim and
+ * a signature:
+ *
+ *   1. claimed time vs the rarity gates (30/60/90/120/150s — same as client)
+ *   2. run session wall clock: POST /api/loopitern/run-seed pins a seed at
+ *      run start; real elapsed time must be ≥ the gate (defense in depth)
+ *   3. REPLAY (the real gate): the client records every input it fed the
+ *      deterministic ClimbSim; this route re-runs that log through the
+ *      identical sim (same seed, same theme, P2M constants) and only signs
+ *      if the replayed run genuinely ends in death at ≥ the gate time.
+ *      Posting { timeSurvived: 9999 } from a console buys nothing — the
+ *      replay is authoritative and a fabricated log doesn't survive it.
+ *
+ * The voucher itself is EIP-712 bound to (minter, rarity, deadline, nonce,
+ * chainId, contract); the contract's ecrecover check plus the single-use
+ * nonce makes it unforgeable and unreplayable.
  *
  * Honesty rules:
  *   - contract not configured (NEXT_PUBLIC_LOOPITERNS_ADDRESS empty/zero)
  *     → 503, never a signed voucher
  *   - VOUCHER_SIGNER_PRIVATE_KEY missing (server-only, gitignored)
  *     → 503, never a fake signature
- *   - rarity not unlocked by timeSurvived → 403
- *   - rarity out of range / bad address → 400
+ *   - rarity not unlocked by the REPLAYED time → 403
+ *   - rarity out of range / bad address / bad log → 400 or 403
  *
  * VOUCHER_SIGNER_PRIVATE_KEY must be the key whose address was passed as
  * MINT_SIGNER_ADDRESS to the v2 deploy. It is server-only: never
@@ -36,7 +42,10 @@ import { NextResponse } from "next/server";
 import { getLoopiternsAddress } from "@/web3/loopiterns/address";
 import { ROBINHOOD_CHAIN_ID } from "@/web3/config";
 import { highestRarityForSurvival, isLoopiternRarityId, rarityById } from "@/game/mintTiers";
-import { validateRunSeed } from "@/server/loopiterns/runSeedStore";
+import { VANILLA_MODIFIERS } from "@/game/traits";
+import { parseRunInputLog } from "@/game/sim/inputLog";
+import { replayRun } from "@/game/sim/replay";
+import { validateRunSession } from "@/server/loopiterns/sessionStore";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -122,20 +131,63 @@ export async function POST(req: Request) {
     );
   }
 
-  // Server-side gate 2 (the real one): the run seed. The seed was issued
-  // when the run started; real wall-clock time must have passed since —
-  // at least minSeconds for the rarity being minted. A console script
-  // posting timeSurvived: 9999 gets "too fast" here unless it actually
-  // waited the full gate. Gate on the MINTED rarity (what we're about to
-  // sign), not just the claimed one — a 155s elapsed seed can claim
-  // Uncommon, but a 35s seed can never mint an Uncommon voucher.
   const mintedRarity = rarityById(rarity);
   if (!mintedRarity) {
     return NextResponse.json({ error: "bad rarity" }, { status: 400 });
   }
-  const seedError = validateRunSeed(rec.seedId, mintedRarity.minSeconds);
-  if (seedError) {
-    return NextResponse.json({ error: seedError }, { status: 403 });
+
+  // Server-side gate 2 (wall clock, defense in depth): the session was
+  // issued when the run started; real time must have passed since — at
+  // least minSeconds for the rarity being minted. Gate on the MINTED
+  // rarity, not just the claimed one.
+  const sessionCheck = validateRunSession(rec.sessionId, mintedRarity.minSeconds);
+  if (!sessionCheck.ok) {
+    return NextResponse.json({ error: sessionCheck.error }, { status: 403 });
+  }
+
+  // Server-side gate 3 (the real one): replay the recorded run. The client
+  // logged every input it fed its ClimbSim; we re-run that exact log
+  // through the identical deterministic sim seeded with the session's
+  // pinned seed and theme. The replay — not the claim — decides.
+  const inputLog = parseRunInputLog(rec.inputLog);
+  if (!inputLog) {
+    return NextResponse.json(
+      { error: "run replay failed — no valid run record; play the run, then mint" },
+      { status: 403 },
+    );
+  }
+  const replay = replayRun({
+    seed: sessionCheck.session.seed,
+    themeId: sessionCheck.session.themeId,
+    difficultyId: "medium", // P2M constant
+    modifiers: VANILLA_MODIFIERS, // P2M constant
+    width: inputLog.width,
+    height: inputLog.height,
+    log: inputLog,
+  });
+  if (replay.phase !== "gameover") {
+    // The claimed death never happened in the replay — a truncated or
+    // fabricated log.
+    return NextResponse.json(
+      { error: "run replay failed — play the run, then mint" },
+      { status: 403 },
+    );
+  }
+  if (Math.abs(replay.timeSurvived - timeSurvived) > 0.75) {
+    // Cross-engine drift beyond the safety band, or a doctored claim.
+    return NextResponse.json(
+      { error: "run replay mismatch — play the run, then mint" },
+      { status: 403 },
+    );
+  }
+  if (replay.timeSurvived < mintedRarity.minSeconds) {
+    const reached = Math.floor(replay.timeSurvived);
+    return NextResponse.json(
+      {
+        error: `run replay survived ${reached}s — the ${mintedRarity.name} gate is ${mintedRarity.minSeconds}s. Playing is the only way.`,
+      },
+      { status: 403 },
+    );
   }
 
   // Everything below is server-generated; the caller controls none of it.

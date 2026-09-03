@@ -3,7 +3,7 @@
 import { useEffect, useRef, type MutableRefObject } from "react";
 import { audio } from "@/game/audio/AudioManager";
 import { WORLD } from "@/game/constants";
-import { Game } from "@/game/engine/Game";
+import { Game, type RunRecord } from "@/game/engine/Game";
 import { KeyboardInput } from "@/game/input/KeyboardInput";
 import type { CharacterId, DifficultyId, GameMode, HudSnapshot, ThemeId } from "@/game/types";
 import type { LoopiternRarityId } from "@/game/mintTiers";
@@ -27,6 +27,10 @@ type GameCanvasProps = {
   equippedRarity?: LoopiternRarityId | null;
   /** Equipped token id — derives the climb rig's DNA palette. */
   equippedTokenId?: number | null;
+  /** P2M session seed — the run is recorded for server replay. */
+  sessionSeed?: number | null;
+  /** P2M: receives the finished run's replayable record on death. */
+  onRunRecord?: (record: RunRecord) => void;
 };
 
 export function GameCanvas({
@@ -43,11 +47,18 @@ export function GameCanvas({
   mode = "normal",
   equippedRarity = null,
   equippedTokenId = null,
+  sessionSeed = null,
+  onRunRecord,
 }: GameCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const gameRef = useRef<Game | null>(null);
   const onHudRef = useRef(onHud);
   onHudRef.current = onHud;
+  const onRunRecordRef = useRef(onRunRecord);
+  onRunRecordRef.current = onRunRecord;
+  // Construction-time session seed only — later sessions (restarts) reach
+  // the live Game via setSessionSeed below, never by remounting the run.
+  const initialSessionSeedRef = useRef(sessionSeed);
   const effectiveModifiers =
     mode === "normal" ? modifiers : VANILLA_MODIFIERS;
   const effectiveRarity = mode === "normal" ? equippedRarity : null;
@@ -61,6 +72,18 @@ export function GameCanvas({
     const input = new KeyboardInput();
     input.attach();
     inputRef.current = input;
+
+    // Sim playfield dims are locked for the whole run (the server replays
+    // with these exact values), so derive them from the initial viewport —
+    // integers, clamped to the ranges the voucher route validates.
+    const parent0 = canvas.parentElement;
+    const rect0 = parent0?.getBoundingClientRect();
+    const targetAspect = WORLD.width / WORLD.viewHeight;
+    let fitW = rect0?.width ?? WORLD.width;
+    let fitH = rect0?.height ?? WORLD.viewHeight;
+    if (fitW / fitH > targetAspect) fitW = fitH * targetAspect;
+    const simW = Math.round(Math.min(1200, Math.max(280, fitW)));
+    const simH = Math.round(Math.min(2200, Math.max(420, fitH)));
 
     const game = new Game(canvas, input, {
       themeId,
@@ -82,6 +105,13 @@ export function GameCanvas({
       mode,
       equippedRarity: effectiveRarity,
       equippedTokenId: effectiveTokenId,
+      width: simW,
+      height: simH,
+      seed: initialSessionSeedRef.current ?? undefined,
+      onRunRecord:
+        initialSessionSeedRef.current != null && onRunRecordRef.current
+          ? (rec) => onRunRecordRef.current?.(rec)
+          : undefined,
     });
     gameRef.current = game;
 
@@ -98,6 +128,9 @@ export function GameCanvas({
       if (cssW / cssH > targetAspect) {
         cssW = cssH * targetAspect;
       }
+      // The sim keeps its construction dims; the canvas backing store is
+      // sized to them and CSS scales it (aspect is locked 1:1) — a mid-run
+      // resize letterboxes instead of changing the replayed world.
       game.setSize(cssW, cssH, dpr);
       canvas.style.width = `${cssW}px`;
       canvas.style.height = `${cssH}px`;
@@ -175,6 +208,12 @@ export function GameCanvas({
     effectiveModifiers.freezeDuration,
     effectiveModifiers.tsunamiCharges,
   ]);
+
+  // A new session seed (P2M restart) must reach the Game BEFORE the
+  // restart token below fires — effect declaration order guarantees that.
+  useEffect(() => {
+    gameRef.current?.setSessionSeed(sessionSeed ?? undefined);
+  }, [sessionSeed]);
 
   useEffect(() => {
     if (restartToken > 0) gameRef.current?.restart();

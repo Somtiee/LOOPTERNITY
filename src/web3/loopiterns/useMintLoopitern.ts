@@ -14,6 +14,8 @@ import {
   type LoopiternRarity,
 } from "@/game/mintTiers";
 import { stillApiPath } from "@/game/loopiternStills";
+import type { RunInputLog } from "@/game/sim/inputLog";
+import type { RunRecord } from "@/game/engine/Game";
 import { EXPLORER_ORIGIN, ROBINHOOD_CHAIN_ID } from "@/web3/config";
 import { useWalletSession } from "@/web3/hooks/useWalletSession";
 import { walletTxError } from "@/web3/walletErrors";
@@ -60,12 +62,19 @@ async function fetchVoucher(
   address: Address,
   rarity: number,
   timeSurvived: number,
-  seedId: string | null,
+  sessionId: string,
+  inputLog: RunInputLog,
 ): Promise<Voucher> {
   const res = await fetch("/api/loopitern/voucher", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ address, rarity, timeSurvived, seedId }),
+    body: JSON.stringify({
+      address,
+      rarity,
+      timeSurvived,
+      sessionId,
+      inputLog,
+    }),
   });
   const data = (await res.json().catch(() => null)) as
     | (Voucher & { error?: string })
@@ -86,16 +95,17 @@ async function fetchVoucher(
 }
 
 /**
- * P2M mint (v2, voucher-gated + run-seed attested). The client asks this
- * server for a signed voucher; the server checks the rarity gate AND that
- * real wall-clock time passed since the run seed was issued; the chain
- * checks the signature, price, max 5, 10k cap, and per-rarity remaining.
- * No "verified" badge — the voucher only proves the server saw a run that
- * reached the rarity gate.
+ * P2M mint (v2, voucher-gated + replay-attested). The client asks this
+ * server for a signed voucher; the server re-runs the recorded input log
+ * through the identical deterministic sim and only signs if the replayed
+ * run genuinely survived the rarity gate; the chain checks the signature,
+ * price, max 5, 10k cap, and per-rarity remaining. No "verified" badge —
+ * the voucher only proves the server watched a real run reach the gate.
  */
 export function useMintLoopitern(
   timeSurvived: number,
-  runSeedId: string | null,
+  sessionId: string | null,
+  runRecord: RunRecord | null,
 ) {
   const { address: wallet, onRobinhood, hasWallet, chainId } =
     useWalletSession();
@@ -265,9 +275,9 @@ export function useMintLoopitern(
     if (!hasWallet || !onRobinhood) return;
     if (!wallet) return;
     if (ownedCount >= MAX_PER_WALLET || paused) return;
-    if (!runSeedId) {
+    if (!sessionId || !runRecord) {
       setLocalError(
-        "No run seed — restart the run, then mint (playing is the only way).",
+        "No attested run — hit NEW for a fresh run, then mint (playing is the only way).",
       );
       return;
     }
@@ -275,12 +285,14 @@ export function useMintLoopitern(
     setTokenId(null);
     reset();
     try {
-      // 1) Server voucher — rarity gate + run-seed elapsed check live there.
+      // 1) Server voucher — rarity gate + session clock + full run replay
+      //    live there. The replay is authoritative.
       const voucher = await fetchVoucher(
         wallet,
         resolved.id,
         timeSurvived,
-        runSeedId,
+        sessionId,
+        runRecord.inputLog,
       );
       // 2) On-chain mint with the signed voucher.
       await writeContractAsync({
@@ -313,7 +325,8 @@ export function useMintLoopitern(
     paused,
     reset,
     resolved,
-    runSeedId,
+    runRecord,
+    sessionId,
     timeSurvived,
     wallet,
     writeContractAsync,
