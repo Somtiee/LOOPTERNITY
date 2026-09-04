@@ -33,6 +33,8 @@ type StartMenuProps = {
   p2mThemeId: ThemeId;
   /** Live sellout state from the contract. */
   soldOut: boolean;
+  /** Wallet already holds 5/5 LOOPITERNS — the mint cap locks P2M. */
+  mintCapReached: boolean;
   /** Both modes need a connected wallet before START unlocks. */
   walletConnected: boolean;
   /** P2M also needs the wallet on Robinhood Chain — the mint lives there. */
@@ -73,6 +75,7 @@ export function StartMenu({
   onEquip,
   p2mThemeId,
   soldOut,
+  mintCapReached,
   walletConnected,
   onRobinhood,
 }: StartMenuProps) {
@@ -88,10 +91,13 @@ export function StartMenu({
       ? `${formatMintPriceEth(supply.mintPrice)} / MINT`
       : "MINT COSTS ETH";
   const p2mLocked = mode === "p2m" && soldOut;
+  const p2mCapped = mode === "p2m" && mintCapReached;
   const walletReady =
     mode === "p2m" ? walletConnected && onRobinhood : walletConnected;
   const canStart =
-    mode !== "p2e" && walletReady && (mode === "normal" || !soldOut);
+    mode !== "p2e" &&
+    walletReady &&
+    (mode === "normal" || (!soldOut && !mintCapReached));
 
   const click = (fn: () => void, sting?: "click" | "enemy") => {
     void audio.unlock();
@@ -138,6 +144,18 @@ export function StartMenu({
           <div className="mt-6 rounded-2xl border border-[#00C805]/30 bg-[#00C805]/10 px-4 py-3 text-center">
             <p className="font-[family-name:var(--font-display)] text-xs tracking-[0.24em] text-[#00C805]">
               LOOPITERNS MINTED OUT
+            </p>
+          </div>
+        ) : null}
+
+        {mode === "p2m" && mintCapReached ? (
+          <div className="mt-6 rounded-2xl border border-[#00C805]/30 bg-[#00C805]/10 px-4 py-3 text-center">
+            <p className="font-[family-name:var(--font-display)] text-xs tracking-[0.24em] text-[#00C805]">
+              MINT LIMIT REACHED — 5/5 LOOPITERNS
+            </p>
+            <p className="mt-1.5 text-[11px] leading-relaxed text-white/45">
+              This wallet already holds all 5 of its LOOPITERNS, so no P2M run
+              can be minted. You can still climb in Normal mode.
             </p>
           </div>
         ) : null}
@@ -193,7 +211,11 @@ export function StartMenu({
                   P2M
                 </span>
                 <span className="rounded-md border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] tracking-[0.14em] text-white/55">
-                  {mode === "p2m" && soldOut ? "MINTED OUT" : p2mPriceLabel}
+                  {p2mCapped
+                    ? "5/5 MINTED"
+                    : mode === "p2m" && soldOut
+                      ? "MINTED OUT"
+                      : p2mPriceLabel}
                 </span>
               </div>
               <p className="mt-2 text-xs leading-relaxed text-white/45">
@@ -418,11 +440,13 @@ export function StartMenu({
             >
               {mode === "p2e"
                 ? "COMING SOON"
-                : p2mLocked
-                  ? "MINTED OUT"
-                  : mode === "p2m"
-                    ? "START P2M"
-                    : "START RUN"}
+                : p2mCapped
+                  ? "5/5 MINTED"
+                  : p2mLocked
+                    ? "MINTED OUT"
+                    : mode === "p2m"
+                      ? "START P2M"
+                      : "START RUN"}
             </button>
           ) : (
             <>

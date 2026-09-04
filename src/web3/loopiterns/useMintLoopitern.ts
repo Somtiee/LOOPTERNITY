@@ -30,7 +30,9 @@ export type MintTxStatus =
   | "success"
   | "error";
 
-const MAX_PER_WALLET = 5;
+/** On-chain per-wallet mint cap — the chain rejects mint #6. */
+export const MAX_LOOPITERNS_PER_WALLET = 5;
+const MAX_PER_WALLET = MAX_LOOPITERNS_PER_WALLET;
 
 /** Voucher response from POST /api/loopitern/voucher. */
 type Voucher = {

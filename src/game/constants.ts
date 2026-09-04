@@ -108,6 +108,12 @@ export const ENEMIES = {
 export const TSUNAMI = {
   /** Seconds until the next enemy may spawn after a Tsunami. */
   respawnDelaySec: 15,
+  /**
+   * Seconds after the respawn delay during which only ONE enemy may be on
+   * the field. Without this the second enemy joins seconds after the first
+   * at high intensity (maxAlive 2), wasting the wave's breather.
+   */
+  soloDurationSec: 60,
 } as const;
 
 export const PICKUPS = {

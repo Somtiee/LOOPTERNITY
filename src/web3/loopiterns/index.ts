@@ -12,6 +12,7 @@ export { useLoopiternsInventory } from "./useLoopiternsInventory";
 export { useLoopiternsSupply } from "./useLoopiternsSupply";
 export {
   formatMintPriceEth,
+  MAX_LOOPITERNS_PER_WALLET,
   useMintLoopitern,
   type MintTxStatus,
 } from "./useMintLoopitern";

@@ -139,6 +139,8 @@ export class ClimbSim {
   private nextObstacleY = 0;
   private nextPickupY = 0;
   private nextEnemyAt = 0;
+  /** Until this sim time, at most one enemy may be on the field (post-Tsunami). */
+  private soloEnemyUntil = 0;
   private nextFallAt = 0;
   private dangerReliefT = 0;
   private obstacleId = 0;
@@ -207,6 +209,7 @@ export class ClimbSim {
     this.nextObstacleY = this.player.y + 260;
     this.nextPickupY = this.player.y + PICKUPS.firstHeight;
     this.nextEnemyAt = this.time + 4.5 * diff.enemySpawnMul;
+    this.soloEnemyUntil = 0;
     this.nextFallAt = FALLING.firstDelay;
 
     this.ensureObstacles();
@@ -458,7 +461,13 @@ export class ClimbSim {
     if (this.time < this.nextEnemyAt) return;
 
     const intensity = runIntensity(this.time);
-    const maxAlive = 1 + Math.floor(intensity * 1.5); // 1 → 2
+    // Post-Tsunami solo window: one enemy at a time until it expires, so the
+    // wave buys a real breather instead of a 3-second gap before the pair
+    // re-forms.
+    const maxAlive =
+      this.time < this.soloEnemyUntil
+        ? 1
+        : 1 + Math.floor(intensity * 1.5); // 1 → 2
     if (this.enemies.length >= maxAlive) {
       this.nextEnemyAt = this.time + 1.5;
       return;
@@ -1037,8 +1046,10 @@ export class ClimbSim {
   /**
    * Legendary one-shot: wash every enemy off the screen, clear all shots,
    * shove the rise far below (same pushback a danger hit buys), and hold the
-   * next enemy spawn back for a full breather. Kill centers ride the event so
-   * the shell can burst particles where each Dragon / Bear / Alien died.
+   * field to a single enemy for a full breather — the first spawn is delayed,
+   * then a solo window keeps the pair from re-forming. Kill centers ride the
+   * event so the shell can burst particles where each Dragon / Bear / Alien
+   * died.
    */
   private triggerTsunami() {
     const killed = this.enemies.map((e) => ({
@@ -1050,6 +1061,12 @@ export class ClimbSim {
     this.nextEnemyAt = Math.max(
       this.nextEnemyAt,
       this.time + TSUNAMI.respawnDelaySec,
+    );
+    // First enemy returns after the respawn delay; the second is held back
+    // for the full solo window after that.
+    this.soloEnemyUntil = Math.max(
+      this.soloEnemyUntil,
+      this.time + TSUNAMI.respawnDelaySec + TSUNAMI.soloDurationSec,
     );
     this.dangerY = this.player.y - DANGER.hitPushback;
     this.dangerReliefT = DANGER.reliefTime;

@@ -17,12 +17,12 @@ import { CHAIN_SWITCH_LABEL } from "@/web3/config";
 import { useWalletSession } from "@/web3/hooks/useWalletSession";
 import {
   formatMintPriceEth,
+  MAX_LOOPITERNS_PER_WALLET,
   useMintLoopitern,
 } from "@/web3/loopiterns";
 import { LoopiternPortrait } from "./LoopiternPortrait";
 import { MuteButton } from "./MuteButton";
 
-const MAX_LOOPITERNS_PER_WALLET = 5;
 const MINT_GREEN = "#00C805";
 const MINT_INK = "#05140a";
 /**

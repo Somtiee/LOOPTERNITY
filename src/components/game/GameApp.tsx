@@ -29,6 +29,7 @@ import {
 } from "@/web3/loopiterns/equip";
 import { useLoopiternsInventory } from "@/web3/loopiterns/useLoopiternsInventory";
 import { useLoopiternsSupply } from "@/web3/loopiterns/useLoopiternsSupply";
+import { MAX_LOOPITERNS_PER_WALLET } from "@/web3/loopiterns";
 import { requestRunSession, type RunSession } from "@/web3/loopiterns/runSession";
 import {
   recordGuestNormalBest,
@@ -81,6 +82,14 @@ export default function GameApp() {
     refetch: refetchInventory,
   } = useLoopiternsInventory();
   const supply = useLoopiternsSupply();
+  // A wallet at the 5/5 cap can't mint a P2M run — the chain would reject
+  // it — so P2M is locked for it. Like soldOut, a failed/unloaded read
+  // never fakes the cap.
+  const mintCapReached =
+    configured &&
+    onRobinhood &&
+    !inventoryLoading &&
+    tokenIds.length >= MAX_LOOPITERNS_PER_WALLET;
   const coarsePointer = useCoarsePointer();
   const [screen, setScreen] = useState<Screen>("menu");
   const [mode, setMode] = useState<GameMode>("normal");
@@ -276,9 +285,16 @@ export default function GameApp() {
     // backstop.
     if (!hasWallet) return;
     if (mode === "p2m" && !walletOnRobinhood) return;
-    if (mode === "p2m" && supply.soldOut) return;
+    if (mode === "p2m" && (supply.soldOut || mintCapReached)) return;
     launchRun();
-  }, [hasWallet, launchRun, mode, supply.soldOut, walletOnRobinhood]);
+  }, [
+    hasWallet,
+    launchRun,
+    mintCapReached,
+    mode,
+    supply.soldOut,
+    walletOnRobinhood,
+  ]);
 
   const restart = useCallback(() => {
     audio.sfx("click");
@@ -363,6 +379,7 @@ export default function GameApp() {
         onEquip={selectEquip}
         p2mThemeId={p2mThemeId}
         soldOut={supply.soldOut}
+        mintCapReached={mintCapReached}
         walletConnected={hasWallet}
         onRobinhood={walletOnRobinhood}
       />
