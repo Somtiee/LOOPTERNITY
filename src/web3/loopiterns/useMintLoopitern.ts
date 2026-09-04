@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatEther, parseEventLogs, type Address } from "viem";
 import {
+  usePublicClient,
   useReadContract,
   useWaitForTransactionReceipt,
   useWriteContract,
@@ -109,6 +110,7 @@ export function useMintLoopitern(
 ) {
   const { address: wallet, onRobinhood, hasWallet, chainId } =
     useWalletSession();
+  const publicClient = usePublicClient({ chainId: ROBINHOOD_CHAIN_ID });
   const contract = getLoopiternsAddress();
   const [localError, setLocalError] = useState<string | null>(null);
   const [tokenId, setTokenId] = useState<bigint | null>(null);
@@ -292,25 +294,54 @@ export function useMintLoopitern(
         sessionId,
         runRecord.inputLog,
       );
-      // 2) On-chain mint with the signed voucher.
-      await writeContractAsync({
-        address: contract,
-        abi: loopiternsAbi,
-        functionName: "mintWithVoucher",
-        args: [
-          resolved.id,
-          BigInt(voucher.deadline),
-          BigInt(voucher.nonce),
-          voucher.signature,
-        ],
-        value: mintPrice,
-        chainId: ROBINHOOD_CHAIN_ID,
-      });
+      const args = [
+        resolved.id,
+        BigInt(voucher.deadline),
+        BigInt(voucher.nonce),
+        voucher.signature,
+      ] as const;
+      // 2) Pre-flight the mint as an eth_call from the player's address:
+      //    catches an already-minted run (UsedNonce), an expired voucher, a
+      //    price change, the wallet cap, or a sellout BEFORE gas is spent.
+      //    Falls back to a direct send if the RPC can't simulate.
+      if (publicClient) {
+        const { request } = await publicClient.simulateContract({
+          address: contract,
+          abi: loopiternsAbi,
+          functionName: "mintWithVoucher",
+          args: [...args],
+          value: mintPrice,
+          account: wallet,
+        });
+        await writeContractAsync(request);
+      } else {
+        // 3) On-chain mint with the signed voucher.
+        await writeContractAsync({
+          address: contract,
+          abi: loopiternsAbi,
+          functionName: "mintWithVoucher",
+          args: [...args],
+          value: mintPrice,
+          chainId: ROBINHOOD_CHAIN_ID,
+        });
+      }
     } catch (e) {
       const message =
         e instanceof Error && e.message
           ? e.message
           : walletTxError(e, chainId ?? ROBINHOOD_CHAIN_ID, "mint");
+      // The run already minted (stuck-tx retry, second tab, …) — the chain
+      // would reject a second mint; say so plainly instead of a raw revert.
+      if (/UsedNonce/i.test(message)) {
+        setLocalError(
+          "This run was already minted — start a new run to mint again.",
+        );
+        return;
+      }
+      if (/ExpiredVoucher/i.test(message)) {
+        setLocalError("The mint window expired — retry the mint.");
+        return;
+      }
       setLocalError(message);
     }
   }, [
@@ -321,6 +352,7 @@ export function useMintLoopitern(
     onRobinhood,
     ownedCount,
     paused,
+    publicClient,
     reset,
     resolved,
     runRecord,

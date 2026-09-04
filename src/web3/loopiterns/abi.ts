@@ -71,6 +71,38 @@ export const loopiternsAbi = [
     ],
     outputs: [{ name: "", type: "uint256" }],
   },
+  // Custom errors from Loopiterns.sol — declared so the mint pre-flight
+  // (simulateContract) decodes the revert reason instead of a generic blob.
+  {
+    type: "error",
+    name: "UsedNonce",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "ExpiredVoucher",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "BadVoucher",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "WrongPrice",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "WalletCap",
+    inputs: [],
+  },
+  {
+    type: "error",
+    name: "SoldOut",
+    inputs: [],
+  },
   {
     type: "event",
     name: "Minted",

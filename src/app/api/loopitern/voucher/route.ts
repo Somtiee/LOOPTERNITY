@@ -21,7 +21,10 @@
  *
  * The voucher itself is EIP-712 bound to (minter, rarity, deadline, nonce,
  * chainId, contract); the contract's ecrecover check plus the single-use
- * nonce makes it unforgeable and unreplayable.
+ * nonce makes it unforgeable and unreplayable. The nonce is derived
+ * deterministically from the run session, so ONE RUN = ONE MINT on chain:
+ * a second voucher for the same session reuses its nonce and the contract
+ * reverts the second mint with `UsedNonce` (no server storage needed).
  *
  * Honesty rules:
  *   - contract not configured (NEXT_PUBLIC_LOOPITERNS_ADDRESS empty/zero)
@@ -45,7 +48,7 @@ import { highestRarityForSurvival, isLoopiternRarityId, rarityById } from "@/gam
 import { VANILLA_MODIFIERS } from "@/game/traits";
 import { parseRunInputLog } from "@/game/sim/inputLog";
 import { replayRun } from "@/game/sim/replay";
-import { validateRunSession } from "@/server/loopiterns/sessionStore";
+import { validateRunSession, sessionVoucherNonce } from "@/server/loopiterns/sessionStore";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -192,12 +195,20 @@ export async function POST(req: Request) {
 
   // Everything below is server-generated; the caller controls none of it.
   const deadline = BigInt(Math.floor(Date.now() / 1000) + VOUCHER_TTL_SECONDS);
-  // Random 64-bit nonce (never 0 — the contract rejects zero).
-  const nonce =
-    BigInt.asUintN(
-      64,
-      BigInt(`0x${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`),
-    ) || 1n;
+  // Deterministic nonce derived from the run session. This is what makes a
+  // run single-mint on chain with zero server state: every voucher for the
+  // same session carries the same nonce, so the retry-after-stuck-tx that
+  // once minted twice now reverts with `UsedNonce` on the second mint. A
+  // wallet rejection changes nothing (the nonce is only consumed by a
+  // successful mint) and a re-request after expiry just gets a fresh
+  // deadline over the same nonce. Never 0 — the contract rejects zero.
+  const nonce = sessionVoucherNonce(rec.sessionId);
+  if (nonce === null) {
+    return NextResponse.json(
+      { error: "voucher nonce unavailable — bad session" },
+      { status: 403 },
+    );
+  }
 
   // EIP-712 sign via viem — same digest layout the contract reconstructs
   // (domain "Loopiterns"/"2"/chainId/contract + VOUCHER_TYPEHASH), 65-byte

@@ -8,6 +8,7 @@ import type { GameMode } from "./types";
  */
 export type RunModifiers = {
   maxShields: number;
+  /** Scales BOTH horizontal steering and the climb speed itself. */
   speedMul: number;
   freezeCharges: number;
   freezeDuration: number;
@@ -79,7 +80,10 @@ export function runModifiersForMode(
 export function describeTraits(rarity: LoopiternRarityId): string {
   const m = modifiersForRarity(rarity);
   const pct = Math.round((m.speedMul - 1) * 100);
-  const parts = [`+${pct}% move`, `${m.maxShields} shields`];
+  const parts = [
+    `+${pct}% climb & move`,
+    `${m.maxShields} shields`,
+  ];
   if (m.freezeCharges > 0) parts.push(`Freeze ${m.freezeDuration}s`);
   if (m.tsunamiCharges > 0) parts.push("Tsunami");
   return parts.join(" · ");

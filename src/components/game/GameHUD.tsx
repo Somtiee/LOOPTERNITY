@@ -600,7 +600,7 @@ export function GameHUD({
               MAIN MENU
             </button>
             <p className="mt-3 text-[11px] text-white/35">
-              Press R / Enter / Space
+              Press R / Enter
             </p>
           </div>
         </div>

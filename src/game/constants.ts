@@ -100,6 +100,16 @@ export const ENEMIES = {
   cullBelow: 480,
 } as const;
 
+/**
+ * Legendary Tsunami: a single-use wave that washes every Dragon / Bear /
+ * Alien off the screen and holds the next spawn back so the field stays
+ * clear for a visible breather.
+ */
+export const TSUNAMI = {
+  /** Seconds until the next enemy may spawn after a Tsunami. */
+  respawnDelaySec: 15,
+} as const;
+
 export const PICKUPS = {
   firstHeight: 620,
   spacing: 980,

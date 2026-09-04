@@ -54,6 +54,9 @@ type SessionPayload = {
 /** HMAC domain separator so the key is never signed over raw attacker JSON. */
 const HMAC_DOMAIN = "loopternity:run-session:v1";
 
+/** Separate domain for the per-session voucher nonce derivation. */
+const NONCE_DOMAIN = "loopternity:voucher-nonce:v1";
+
 const THEME_IDS = new Set<string>(listThemes().map((t) => t.id as string));
 
 /** The server-only voucher key doubles as the session-signing key. */
@@ -112,62 +115,21 @@ const BAD_SESSION_ID = "bad sessionId — request a run session at run start";
  * must have passed since issue (defense in depth — the replay check in the
  * voucher route is the real gate).
  *
- * Sessions are intentionally NOT single-use: the player may retry the mint
- * after a wallet rejection using the same run. What stops farming is the
- * chain, not the session — every voucher still costs 0.0002 ETH and counts
- * toward the 5-per-wallet cap.
+ * A session is single-use ON THE CHAIN, not in server memory: the voucher
+ * nonce is derived deterministically from the session (see
+ * `sessionVoucherNonce`), so every voucher for the same run carries the same
+ * nonce and the contract's single-use `nonceUsed` map rejects the second
+ * mint. Re-requesting a voucher after a wallet rejection is still fine — the
+ * nonce is only consumed on a successful mint, and the re-request just gets a
+ * fresh deadline over the same nonce.
  */
 export function validateRunSession(
   sessionId: unknown,
   minElapsedSeconds: number,
 ): SessionValidation {
-  if (
-    typeof sessionId !== "string" ||
-    sessionId.length > 512 ||
-    !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(sessionId)
-  ) {
-    return { ok: false, error: BAD_SESSION_ID };
-  }
-  const key = getSigningKey();
-  if (!key) {
-    return { ok: false, error: "session signing is not configured" };
-  }
-
-  const dot = sessionId.indexOf(".");
-  const payloadB64 = sessionId.slice(0, dot);
-  const sigB64 = sessionId.slice(dot + 1);
-  let payloadJson: string;
-  try {
-    payloadJson = Buffer.from(payloadB64, "base64url").toString("utf8");
-  } catch {
-    return { ok: false, error: BAD_SESSION_ID };
-  }
-
-  // Signature over the exact payload bytes — any edit breaks it. Compare
-  // the decoded HMAC bytes (constant-time), not the base64 strings.
-  const expected = Buffer.from(signPayload(key, payloadJson), "base64url");
-  const given = Buffer.from(sigB64, "base64url");
-  if (given.length !== expected.length || !timingSafeEqual(given, expected)) {
-    return { ok: false, error: "run session invalid — start a new run" };
-  }
-
-  let payload: SessionPayload;
-  try {
-    payload = JSON.parse(payloadJson) as SessionPayload;
-  } catch {
-    return { ok: false, error: BAD_SESSION_ID };
-  }
-  if (
-    payload?.v !== 1 ||
-    !Number.isInteger(payload.seed) ||
-    payload.seed < 0 ||
-    payload.seed > 0x7fffffff ||
-    !THEME_IDS.has(payload.theme) ||
-    !Number.isInteger(payload.iat) ||
-    payload.iat <= 0
-  ) {
-    return { ok: false, error: BAD_SESSION_ID };
-  }
+  const parsed = parseSessionToken(sessionId);
+  if ("error" in parsed) return { ok: false, error: parsed.error };
+  const { payload } = parsed;
 
   const elapsedMs = Date.now() - payload.iat;
   if (elapsedMs > RUN_SESSION_TTL_MS) {
@@ -184,4 +146,87 @@ export function validateRunSession(
     ok: true,
     session: { issuedAt: payload.iat, seed: payload.seed, themeId: payload.theme },
   };
+}
+
+/**
+ * Deterministic 64-bit voucher nonce for a run session. This is what makes a
+ * session single-use without any server storage: the same session always
+ * derives the same nonce, so a second voucher minted from the same run (the
+ * stuck-transaction retry that double-minted) reverts with `UsedNonce` on
+ * chain. Derived from the canonical decoded payload — base64 has trailing-bit
+ * slack, so two spellings of the same token must not fork into two nonces.
+ *
+ * Returns null when the signing key is not configured — the caller must 503.
+ */
+export function sessionVoucherNonce(sessionId: unknown): bigint | null {
+  const parsed = parseSessionToken(sessionId);
+  if ("error" in parsed) return null;
+  const key = getSigningKey();
+  if (!key) return null;
+  const digest = createHmac("sha256", key)
+    .update(`${NONCE_DOMAIN}:${parsed.payloadJson}`)
+    .digest();
+  const nonce = digest.readBigUInt64BE(0);
+  // The contract rejects a zero nonce.
+  return nonce === 0n ? 1n : BigInt.asUintN(64, nonce);
+}
+
+type ParsedSession = { payload: SessionPayload; payloadJson: string };
+
+/**
+ * Shared token verification: shape check, decode, constant-time HMAC compare,
+ * payload sanity. Returns the parsed payload plus the exact JSON it was
+ * signed over (the canonical form nonce derivation uses).
+ */
+function parseSessionToken(
+  sessionId: unknown,
+): ParsedSession | { error: string } {
+  if (
+    typeof sessionId !== "string" ||
+    sessionId.length > 512 ||
+    !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(sessionId)
+  ) {
+    return { error: BAD_SESSION_ID };
+  }
+  const key = getSigningKey();
+  if (!key) {
+    return { error: "session signing is not configured" };
+  }
+
+  const dot = sessionId.indexOf(".");
+  const payloadB64 = sessionId.slice(0, dot);
+  const sigB64 = sessionId.slice(dot + 1);
+  let payloadJson: string;
+  try {
+    payloadJson = Buffer.from(payloadB64, "base64url").toString("utf8");
+  } catch {
+    return { error: BAD_SESSION_ID };
+  }
+
+  // Signature over the exact payload bytes — any edit breaks it. Compare
+  // the decoded HMAC bytes (constant-time), not the base64 strings.
+  const expected = Buffer.from(signPayload(key, payloadJson), "base64url");
+  const given = Buffer.from(sigB64, "base64url");
+  if (given.length !== expected.length || !timingSafeEqual(given, expected)) {
+    return { error: "run session invalid — start a new run" };
+  }
+
+  let payload: SessionPayload;
+  try {
+    payload = JSON.parse(payloadJson) as SessionPayload;
+  } catch {
+    return { error: BAD_SESSION_ID };
+  }
+  if (
+    payload?.v !== 1 ||
+    !Number.isInteger(payload.seed) ||
+    payload.seed < 0 ||
+    payload.seed > 0x7fffffff ||
+    !THEME_IDS.has(payload.theme) ||
+    !Number.isInteger(payload.iat) ||
+    payload.iat <= 0
+  ) {
+    return { error: BAD_SESSION_ID };
+  }
+  return { payload, payloadJson };
 }

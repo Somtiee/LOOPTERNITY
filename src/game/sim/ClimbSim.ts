@@ -31,6 +31,7 @@ import {
   PLAYER,
   SINK,
   THEME_META,
+  TSUNAMI,
   WORLD,
   enemySmartMul,
   enemySpeedMul,
@@ -83,7 +84,7 @@ export type TickInputs = {
 export type SimEvent =
   | { kind: "boost" }
   | { kind: "freeze" }
-  | { kind: "tsunami" }
+  | { kind: "tsunami"; killed: { x: number; y: number }[] }
   | { kind: "hit" }
   | { kind: "gameOver" }
   | { kind: "nearMiss" }
@@ -193,7 +194,7 @@ export class ClimbSim {
       x: this.width / 2 - PLAYER.width / 2,
       y: 120,
       vx: 0,
-      vy: diff.climbSpeed,
+      vy: diff.climbSpeed * this.modifiers.speedMul,
       facing: 1,
       invuln: 0,
       bob: 0,
@@ -305,7 +306,12 @@ export class ClimbSim {
           (PLAYER.boostImpulse / Math.max(1, diff.climbSpeed)) *
             (this.player.boostT / PLAYER.boostDuration)
         : 1;
-    this.player.vy = diff.climbSpeed * pulse * boostMul - sinkPull;
+    // The rarity trait scales BOTH axes of movement — horizontal steering
+    // above and the climb itself here — so a Legendary visibly out-climbs a
+    // Common instead of just side-dodging faster. P2M always replays with
+    // speedMul 1 (vanilla), so replay attestation is unaffected.
+    const climbSpeed = diff.climbSpeed * this.modifiers.speedMul;
+    this.player.vy = climbSpeed * pulse * boostMul - sinkPull;
     this.player.x += this.player.vx * dt;
     this.player.y += this.player.vy * dt;
 
@@ -1028,12 +1034,26 @@ export class ClimbSim {
     }
   }
 
-  /** Legendary one-shot: clear shots, shove the rise using existing hitPushback. */
+  /**
+   * Legendary one-shot: wash every enemy off the screen, clear all shots,
+   * shove the rise far below (same pushback a danger hit buys), and hold the
+   * next enemy spawn back for a full breather. Kill centers ride the event so
+   * the shell can burst particles where each Dragon / Bear / Alien died.
+   */
   private triggerTsunami() {
+    const killed = this.enemies.map((e) => ({
+      x: e.x + e.w / 2,
+      y: e.y + e.h / 2,
+    }));
+    this.enemies = [];
     this.projectiles = [];
+    this.nextEnemyAt = Math.max(
+      this.nextEnemyAt,
+      this.time + TSUNAMI.respawnDelaySec,
+    );
     this.dangerY = this.player.y - DANGER.hitPushback;
     this.dangerReliefT = DANGER.reliefTime;
-    this.events.push({ kind: "tsunami" });
+    this.events.push({ kind: "tsunami", killed });
   }
 
   /** Close pass by an obstacle / enemy / projectile without colliding. */

@@ -66,7 +66,7 @@ export type GameOptions = {
   characterId?: CharacterId;
   onHud?: (hud: HudSnapshot) => void;
   audio?: GameAudioHooks;
-  /** When false, R / Space / boost will not restart after death (P2E re-entry). */
+  /** When false, R / Enter will not restart after death (P2E re-entry). */
   keyboardRestart?: boolean;
   /** Default = vanilla PLAYER. P2M must pass VANILLA_MODIFIERS. */
   modifiers?: RunModifiers;
@@ -343,10 +343,12 @@ export class Game {
 
   private frame(frameDt: number) {
     if (this.phase === "gameover") {
-      if (
-        this.keyboardRestart &&
-        (this.input.consumeRestart() || this.input.consumeBoost())
-      ) {
+      // Only an explicit restart key relaunches — Space / ↑ / W (boost) must
+      // NOT restart: on the P2M death screen the player is reading the mint
+      // card, and a stray Up press yanking them into a new run loses the
+      // mint. Queued boost/freeze/tsunami are drained so nothing stale fires
+      // if a new run starts.
+      if (this.keyboardRestart && this.input.consumeRestart()) {
         this.restart();
         this.draw();
         return;
@@ -418,9 +420,14 @@ export class Game {
         }
         case "tsunami": {
           const green = "#00C805";
-          this.shake = Math.max(this.shake, 0.75);
+          this.shake = Math.max(this.shake, 0.9);
           this.bannerText = "TSUNAMI";
           this.alertBanner = 1.5;
+          // A burst where every washed-away enemy stood — the wipe reads as
+          // kills, not as enemies silently vanishing.
+          for (const k of ev.killed) {
+            this.burstParticles(k.x, k.y, 16, this.theme.accent);
+          }
           this.burstParticles(
             this.player.x + PLAYER.width / 2,
             this.dangerY + 24,
