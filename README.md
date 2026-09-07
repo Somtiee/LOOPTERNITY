@@ -104,7 +104,7 @@ App-side env (see `.env.example` and `docs/vercel-env.txt`):
 - `NEXT_PUBLIC_LOOPITERNS_ADDRESS` — the deployed address; empty/zero = mint disabled.
 - `NEXT_PUBLIC_LOOPITERNS_MINT_PRICE_WEI` — optional fallback if `mintPrice()` can't be read.
 - `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` — optional; enables WalletConnect/mobile wallets.
-- `NEXT_PUBLIC_RPC_URL` — optional; defaults to `https://rpc.mainnet.chain.robinhood.com`.
+- `NEXT_PUBLIC_RPC_URL` — optional **fallback** RPC used only when the public Robinhood RPC fails (e.g. a restrict-to-Robinhood Alchemy URL; browser-visible, so use a scoped key, never an admin key).
 
 ## Treasury: how to withdraw
 

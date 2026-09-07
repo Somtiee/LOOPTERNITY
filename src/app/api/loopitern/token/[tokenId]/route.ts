@@ -22,9 +22,13 @@
  * tokenId is guarded to 1..10000.
  */
 
-import { createPublicClient, http } from "viem";
+import { createPublicClient, fallback, http } from "viem";
 import { getLoopiternsAddress } from "@/web3/loopiterns/address";
-import { ROBINHOOD_CHAIN, ROBINHOOD_RPC_URL } from "@/web3/config";
+import {
+  ROBINHOOD_CHAIN,
+  ROBINHOOD_RPC_FALLBACK_URL,
+  ROBINHOOD_RPC_URL,
+} from "@/web3/config";
 import { isLoopiternRarityId } from "@/game/mintTiers";
 import { buildLoopiternMetadata, LOOPITERNS_MAX_SUPPLY } from "@/game/loopiternMetadata";
 
@@ -44,6 +48,19 @@ const ABI = [
 function stripJsonExt(raw: string): string {
   return raw.endsWith(".json") ? raw.slice(0, -5) : raw;
 }
+
+/**
+ * Read transport: public Robinhood first, the optional
+ * NEXT_PUBLIC_RPC_URL (Alchemy) only when the public RPC fails — the same
+ * policy as the client wagmi transports (src/web3/config.ts). Built once
+ * at module scope; the per-request client below just references it.
+ */
+const transport = ROBINHOOD_RPC_FALLBACK_URL
+  ? fallback([
+      http(ROBINHOOD_RPC_URL, { retryCount: 1 }),
+      http(ROBINHOOD_RPC_FALLBACK_URL, { retryCount: 1 }),
+    ])
+  : http(ROBINHOOD_RPC_URL, { retryCount: 1 });
 
 export async function GET(
   req: Request,
@@ -65,7 +82,7 @@ export async function GET(
 
   const client = createPublicClient({
     chain: ROBINHOOD_CHAIN,
-    transport: http(ROBINHOOD_RPC_URL, { retryCount: 1 }),
+    transport,
   });
 
   try {

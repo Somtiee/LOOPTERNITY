@@ -3,8 +3,12 @@
 
 NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=
 
-# Optional. Defaults to https://rpc.mainnet.chain.robinhood.com (chain 4663).
-# NEXT_PUBLIC_RPC_URL=https://rpc.mainnet.chain.robinhood.com
+# Optional READ FALLBACK RPC (chain 4663). The app always uses the public
+# https://rpc.mainnet.chain.robinhood.com as primary; this URL is only
+# tried when the public RPC fails. E.g. a restrict-to-Robinhood Alchemy
+# HTTPS URL. NEXT_PUBLIC_ values are visible in the browser — use a
+# scoped/restricted key, never an admin key. Leave empty for public-only.
+# NEXT_PUBLIC_RPC_URL=
 
 # LOOPITERNS ERC-721 on Robinhood (4663). Empty / zero = mint disabled.
 # Set to the v2 (voucher mint) contract address after deploy.
