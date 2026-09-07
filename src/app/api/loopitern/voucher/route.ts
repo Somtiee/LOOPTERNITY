@@ -49,9 +49,21 @@ import { VANILLA_MODIFIERS } from "@/game/traits";
 import { parseRunInputLog } from "@/game/sim/inputLog";
 import { replayRun } from "@/game/sim/replay";
 import { validateRunSession, sessionVoucherNonce } from "@/server/loopiterns/sessionStore";
+import { clientIp, rateLimit, readJsonBody } from "@/server/loopiterns/requestGuards";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/**
+ * Request-shape limits (see requestGuards.ts). A legitimate voucher body is
+ * a ~1-5 KB input log; anything past 64 KB is abuse or a broken client, and
+ * it is refused before the replay sim ever runs. The replay itself is
+ * CPU-bound (up to 36k sim ticks), so the per-IP limit is deliberately
+ * tight: one voucher request per run is the honest rate.
+ */
+const MAX_BODY_BYTES = 64 * 1024;
+const RATE_LIMIT = { max: 6, windowMs: 60_000 };
+
 
 /** Voucher lifetime. The client mints immediately after receiving it. */
 const VOUCHER_TTL_SECONDS = 600;
@@ -96,13 +108,37 @@ export async function POST(req: Request) {
   }
   const mintSigner = privateKeyToAddress(privateKey);
 
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
+  // Rate limit before any expensive work (JSON parse, replay sim).
+  // Per-instance best-effort on serverless — see requestGuards.ts.
+  const ip = clientIp(req);
+  const limited = rateLimit({
+    key: ip ? `voucher:ip:${ip}` : "voucher:ip:unknown",
+    max: RATE_LIMIT.max,
+    windowMs: RATE_LIMIT.windowMs,
+  });
+  if (!limited.ok) {
+    return NextResponse.json(
+      { error: "Too many mint requests — wait a moment and retry." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(limited.retryAfterSeconds) },
+      },
+    );
+  }
+
+  const body = await readJsonBody(req, MAX_BODY_BYTES);
+  if (!body.ok) {
+    if (body.error === "too-large") {
+      return NextResponse.json(
+        { error: "Request body too large" },
+        { status: 413 },
+      );
+    }
     return NextResponse.json({ error: "bad json" }, { status: 400 });
   }
-  const rec = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
+  const rec = body.value && typeof body.value === "object"
+    ? (body.value as Record<string, unknown>)
+    : {};
 
   const addressRaw = typeof rec.address === "string" ? rec.address.trim() : "";
   if (!/^0x[0-9a-fA-F]{40}$/.test(addressRaw)) {

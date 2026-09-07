@@ -19,7 +19,8 @@
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "viem": "^2.31.0",
-    "wagmi": "^2.19.5"
+    "wagmi": "^2.19.5",
+    "sharp": "^0.35.4"
   },
   "devDependencies": {
     "@napi-rs/canvas": "^1.0.8",
@@ -31,7 +32,6 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
     "playwright": "^1.62.1",
-    "sharp": "^0.35.4",
     "tailwindcss": "^4",
     "tsx": "^4.23.12",
     "typescript": "^5"

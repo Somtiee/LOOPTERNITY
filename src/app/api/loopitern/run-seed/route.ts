@@ -23,9 +23,19 @@
 import { NextResponse } from "next/server";
 import { getLoopiternsAddress } from "@/web3/loopiterns/address";
 import { createRunSession } from "@/server/loopiterns/sessionStore";
+import { clientIp, rateLimit, readJsonBody } from "@/server/loopiterns/requestGuards";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/**
+ * Request-shape limits (see requestGuards.ts). The body is a single
+ * optional address — 4 KB is generous. A session per run start is the
+ * honest rate; runs shorter than a few seconds are useless anyway, so a
+ * per-IP limit of 30/min inconveniences nobody but a flood.
+ */
+const MAX_BODY_BYTES = 4 * 1024;
+const RATE_LIMIT = { max: 30, windowMs: 60_000 };
 
 export async function POST(req: Request) {
   const contract = getLoopiternsAddress();
@@ -36,15 +46,46 @@ export async function POST(req: Request) {
     );
   }
 
+  // Rate limit before reading the body — a flood never gets to allocate.
+  // Per-instance best-effort on serverless — see requestGuards.ts.
+  const ip = clientIp(req);
+  const limited = rateLimit({
+    key: ip ? `run-seed:ip:${ip}` : "run-seed:ip:unknown",
+    max: RATE_LIMIT.max,
+    windowMs: RATE_LIMIT.windowMs,
+  });
+  if (!limited.ok) {
+    return NextResponse.json(
+      { error: "Too many run starts — wait a moment and retry." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(limited.retryAfterSeconds) },
+      },
+    );
+  }
+
+  const body = await readJsonBody(req, MAX_BODY_BYTES);
+  if (!body.ok) {
+    if (body.error === "too-large") {
+      return NextResponse.json(
+        { error: "Request body too large" },
+        { status: 413 },
+      );
+    }
+    // Syntactically broken JSON gets the honest 400; a missing body is
+    // tolerated below (address is optional metadata).
+    return NextResponse.json({ error: "bad json" }, { status: 400 });
+  }
+
   let address: string | undefined;
   try {
-    const body = await req.json();
+    const value: unknown = body.value;
     if (
-      body &&
-      typeof body === "object" &&
-      typeof (body as Record<string, unknown>).address === "string"
+      value &&
+      typeof value === "object" &&
+      typeof (value as Record<string, unknown>).address === "string"
     ) {
-      const raw = (body as Record<string, unknown>).address as string;
+      const raw = (value as Record<string, unknown>).address as string;
       if (/^0x[0-9a-fA-F]{40}$/.test(raw.trim())) address = raw.trim();
     }
   } catch {

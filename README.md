@@ -7,7 +7,7 @@ A 2D vertical endless survival climber that lives on **Robinhood Chain** (chain 
 Three modes from the start menu:
 
 - **Normal (free)** — pick a world theme and Easy / Medium / Hard. Personal bests save locally, and sync to your wallet address if you connect one. Minted LOOPITERNS can be equipped here for gameplay traits.
-- **P2M — Play-to-Mint** — the same climb at a locked Medium difficulty. Survive to unlock mint tiers (45s Common → 180s Legendary), then pay the on-chain mint price (0.0002 ETH per LOOPITERN) to mint. Starts without a wallet; connect one only when you're ready to mint.
+- **P2M — Play-to-Mint** — the same climb at a locked Medium difficulty. Survive to unlock mint tiers (30s Common → 150s Legendary), then pay the on-chain mint price (0.0002 ETH per LOOPITERN) to mint. P2M requires a wallet connected and on Robinhood Chain before START unlocks — the mint lives on that chain.
 - **P2E — Coming Soon** — disabled. No leaderboards, no prize payouts, nothing promised yet.
 
 ### Controls
@@ -45,40 +45,44 @@ Your survival time in a P2M run sets the highest rarity you may request. If that
 
 | Rarity | Supply | Survival gate | In-game traits (Normal mode only) |
 | --- | --- | --- | --- |
-| Common | 5,000 | 45s | +4% move speed · 3 shields |
+| Common | 5,000 | 30s | +4% move speed · 3 shields |
 | Uncommon | 2,500 | 60s | +8% move speed · 4 shields |
 | Rare | 1,500 | 90s | +12% move speed · 4 shields · Freeze 5s ×1 |
 | Epic | 800 | 120s | +16% move speed · 5 shields · Freeze 8s ×1 |
-| Legendary | 200 | 180s | +20% move speed · 5 shields · Freeze 10s ×1 · Tsunami ×1 |
+| Legendary | 200 | 150s | +20% move speed · 5 shields · Freeze 10s ×1 · Tsunami ×1 |
 
 Freeze holds the rising danger; Tsunami (Legendary only) clears it. Trait modifiers apply **only in Normal mode** — P2M and unequipped runs are always vanilla.
 
 ## Minting
 
+- **Voucher-only:** there is no public `mint()`. `mintWithVoucher` requires a server-signed EIP-712 voucher bound to (minter, rarity, deadline, single-use nonce, chain, contract). The server only signs after re-running your recorded run through the identical deterministic sim and confirming it genuinely reached the rarity gate — see `/api/loopitern/voucher`.
 - **Price:** exactly `mintPrice` (currently 0.0002 ETH) — the contract reverts on any other value sent.
 - **Wallet cap:** max 5 mints per wallet. The cap is mint-only: buying LOOPITERNS later on a secondary market like OpenSea is **not** capped, and everything you own shows in your in-game inventory (paginated, with Load More).
 - **Drop-down:** request a rarity that's sold out and you get the next lower rarity with supply — the contract never mints above what you unlocked.
 
-> **Honesty note:** client survival time is spoofable. The contract does **not** prove you lasted 45 or 180 seconds — it can't. What the chain enforces is payment, the wallet cap, the 10,000 supply, and the per-rarity caps with drop-down. Treat the gates as a game ritual, not a skill proof.
+> **Honesty note:** the server voucher proves a run was *replayed and verified* to reach the gate (30/150s at the extremes), not that a human held the controls — a bot can play too. What the chain enforces is the server signature, payment, the wallet cap, the 10,000 supply, and the per-rarity caps with drop-down. The gates are a game ritual backed by server attestation, not a skill proof.
 
 ## Deploy status
 
-**Deployed and live on Robinhood Chain (4663).**
+**Deployed and live on Robinhood Chain (4663).** Minting is **voucher-only**: the v2 contract has no public `mint()` — `mintWithVoucher` requires a server-signed EIP-712 voucher (see Minting below).
 
 | | |
 | --- | --- |
-| Contract | [`0x7016CfF42264C8D499a32bBe2b5A039bfd0Ed19f`](https://robinhoodchain.blockscout.com/address/0x7016CfF42264C8D499a32bBe2b5A039bfd0Ed19f) |
+| Contract (v2, live) | [`0x0914DcfdE10e5Df2aA1D8C850213712F64852637`](https://robinhoodchain.blockscout.com/address/0x0914DcfdE10e5Df2aA1D8C850213712F64852637) |
 | Name / symbol | LOOPITERNS / LOOP |
-| Deploy tx | [`0x865c1df8e634023117d484c25ded458cd26dd34464a50c1c90c570582b51f06c`](https://robinhoodchain.blockscout.com/tx/0x865c1df8e634023117d484c25ded458cd26dd34464a50c1c90c570582b51f06c) (block 51,832,171, 2026-09-01) |
+| Deploy tx | [`0x9cdf068f55be1d61944bf60b72a9342f6f355fc9b2606b1d842dbe0adb3d8ec3`](https://robinhoodchain.blockscout.com/tx/0x9cdf068f55be1d61944bf60b72a9342f6f355fc9b2606b1d842dbe0adb3d8ec3) (block 53,336,110, 2026-09-03) |
 | Owner / treasury | `0xED638d2de9E7b6E8D06514A161bb2cEFf28bfCDd` |
+| Voucher signer | `0x486eCE21831ffa07661EF745746e2ec47a486222` (server key, no funds) |
 | Mint price | 0.0002 ETH (owner-adjustable via `setMintPrice`) |
-| Minted at time of writing | 3 of 10,000 |
+| Minted at time of writing | 0 of 10,000 (v2 fresh deploy) |
 | baseURI | **empty** — must be set after deploy (see below) |
 | Source verification | still a TODO — Blockscout's API is Cloudflare-gated for `forge verify-contract`; verify via the explorer's web UI (Contract → Verify & Publish, solc 0.8.29, optimizer on) |
 
 The deployment record lives in `contracts/deployments/robinhood-4663.json`. If `NEXT_PUBLIC_LOOPITERNS_ADDRESS` is empty or zero, the mint UI honestly shows a "minting not live" state instead of pretending.
 
-Note: the batched `raritiesOf()` getter exists in the contract **source** but was added after this deployment, so it is *not* in the live bytecode. The app doesn't need it (it reads rarities via Multicall3), and redeploying just to add it would mean abandoning the already-minted tokens for zero practical gain. Don't.
+Note: the batched `raritiesOf()` getter exists in the contract **source** but is not in the live bytecode (added after the deploy). The app doesn't need it (it reads rarities via Multicall3), and redeploying just to add it would mean abandoning the already-minted tokens for zero practical gain. Don't.
+
+> **v1 is retired (do not use):** the old contract `0x7016CfF42264C8D499a32bBe2b5A039bfd0Ed19f` was withdrawn, paused, and retired on 2026-09-03. Its 3 minted tokens (#1 #2 #3) remain on-chain at that address but the app no longer reads v1 — the inventory only shows tokens on the live v2 contract. Addresses and retire transactions are recorded in the deployment record.
 
 ### Deploy command (for the record / future contract)
 
@@ -104,7 +108,7 @@ App-side env (see `.env.example` and `docs/vercel-env.txt`):
 
 ## Treasury: how to withdraw
 
-The contract accumulates mint ETH. The **owner-only** `withdraw(to)` sweeps the *full* balance to an address, reverting (`WithdrawFailed`) if the transfer is rejected, and emits `Withdrawn(to, amount)`. Verified in tests (`forge test` → withdraw suite, 21/21 passing).
+The contract accumulates mint ETH. The **owner-only** `withdraw(to)` sweeps the *full* balance to an address, reverting (`WithdrawFailed`) if the transfer is rejected, and emits `Withdrawn(to, amount)`. Verified in tests (`forge test` → withdraw suite, 30/30 passing).
 
 From `contracts/`, with the treasury key (`0xED638d…bfCDd` — the deployer/owner) in `contracts/.env` as `PRIVATE_KEY`:
 
@@ -117,7 +121,7 @@ powershell -ExecutionPolicy Bypass -File .\check-pot.ps1
 Raw cast equivalent:
 
 ```bash
-cast send 0x7016CfF42264C8D499a32bBe2b5A039bfd0Ed19f \
+cast send 0x0914DcfdE10e5Df2aA1D8C850213712F64852637 \
   "withdraw(address)" 0xED638d2de9E7b6E8D06514A161bb2cEFf28bfCDd \
   --rpc-url https://rpc.mainnet.chain.robinhood.com \
   --private-key <TREASURY_PRIVATE_KEY>
@@ -130,7 +134,7 @@ cast send 0x7016CfF42264C8D499a32bBe2b5A039bfd0Ed19f \
 Because the deployed `baseURI` is still **empty**, marketplaces cannot resolve token metadata yet. After the production domain is live, the treasury owner must run:
 
 ```bash
-cast send 0x7016CfF42264C8D499a32bBe2b5A039bfd0Ed19f \
+cast send 0x0914DcfdE10e5Df2aA1D8C850213712F64852637 \
   "setBaseURI(string)" "https://<PRODUCTION-DOMAIN>/api/loopitern/token/" \
   --rpc-url https://rpc.mainnet.chain.robinhood.com \
   --private-key <TREASURY_PRIVATE_KEY>
@@ -153,7 +157,7 @@ Contract (`contracts/`, Foundry):
 ```bash
 cd contracts
 forge build
-forge test                   # 21 tests, including the withdraw suite
+forge test                   # 30 tests, incl. voucher forge/replay/expiry + withdraw suite
 ```
 
 LOOPITERN art & DNA tooling (all deterministic, safe to re-run):

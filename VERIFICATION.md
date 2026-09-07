@@ -1,3 +1,15 @@
+# ⚠️ LEGACY DOCUMENT — Base / Inco P2E era (August 2026)
+
+> **This file describes a removed system.** The Base mainnet (8453) vault,
+> Inco confidential-score P2E path, and weekly keeper settle described here
+> were **fully removed from the client** in September 2026. LOOPTERNITY now
+> runs exclusively on **Robinhood Chain (4663)** with voucher-gated
+> LOOPITERNS minting. None of the addresses, contracts, or flows below are
+> live — see `README.md`, `docs/launch.md`, and
+> `contracts/deployments/robinhood-4663.json` for current truth.
+>
+> Kept for history only. Do not follow any instruction in this file.
+
 # Prompt N — Verification (Base mainnet 8453)
 
 Date: 2026-08-14. No features added this pass. Primary network: **Base mainnet**. Sepolia is prior testnet only (same CREATE address, different state).
