@@ -12,8 +12,15 @@
   "deployGasUsed": "3304029 (estimate incl. script overhead)",
   "rpc": "https://rpc.mainnet.chain.robinhood.com",
   "explorer": "https://robinhoodchain.blockscout.com",
-  "status": "DEPLOYED",
-  "statusNote": "Broadcast 2026-09-03 via forge script --broadcast --slow. Verified on-chain: owner=treasury, mintSigner=0x486eCE21831ffa07661EF745746e2ec47a486222 (server voucher signer, key lives only in gitignored contracts/.env as VOUCHER_SIGNER_PRIVATE_KEY), mintPrice=0.0002 ETH, totalSupply=0, not paused, ~20.3KB runtime code. baseURI deployed EMPTY. Minting is voucher-only: mint() removed, mintWithVoucher(rarity, deadline, nonce, signature) requires an EIP-712 server signature, single-use nonce, 10-minute deadline.",
+  "status": "RETIRED 2026-09-14",
+  "statusNote": "Broadcast 2026-09-03 via forge script --broadcast --slow. Verified on-chain: owner=treasury, mintSigner=0x486eCE21831ffa07661EF745746e2ec47a486222 (server voucher signer, key lives only in gitignored contracts/.env as VOUCHER_SIGNER_PRIVATE_KEY), mintPrice=0.0002 ETH, not paused at deploy, ~20.3KB runtime code. baseURI deployed EMPTY. Minting was voucher-only: mint() removed, mintWithVoucher(rarity, deadline, nonce, signature) requires an EIP-712 server signature, single-use nonce, 10-minute deadline. RETIRED 2026-09-14 for the Circle Arc pivot: remaining ETH swept to treasury and the contract paused; minting is permanently disabled unless unpaused by the owner. The app env no longer points at this address — LOOPITERNS UI hides itself with NEXT_PUBLIC_LOOPITERNS_ADDRESS unset.",
+  "v2": {
+    "retireTx": {
+      "withdraw": "0x5ac138c970abc82fcb15dcca16df60e83be2ab92ae1d795253d46ade668055fc (0.001 ETH swept to treasury, contract balance now 0)",
+      "pause": "0xebb66957d1290b028b0c96d6cf990824f7c51008aaa68c0a3f1777450a7fe2a1 (block 62700529)"
+    },
+    "totalSupplyAtRetire": 5
+  },
   "owner": "0xED638d2de9E7b6E8D06514A161bb2cEFf28bfCDd (treasury wallet — also the deployer)",
   "v1": {
     "address": "0x7016CfF42264C8D499a32bBe2b5A039bfd0Ed19f",

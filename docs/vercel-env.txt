@@ -3,15 +3,20 @@
 
 NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=
 
-# Optional READ FALLBACK RPC (chain 4663). The app always uses the public
-# https://rpc.mainnet.chain.robinhood.com as primary; this URL is only
-# tried when the public RPC fails. E.g. a restrict-to-Robinhood Alchemy
-# HTTPS URL. NEXT_PUBLIC_ values are visible in the browser — use a
+# Optional READ FALLBACK RPC. Robinhood Chain mainnet (4663) is RETIRED —
+# remove any Robinhood value. Primary is always the chain's public RPC; this
+# URL is only tried when the public RPC fails. E.g. a chain-restricted
+# Alchemy HTTPS URL. NEXT_PUBLIC_ values are visible in the browser — use a
 # scoped/restricted key, never an admin key. Leave empty for public-only.
 # NEXT_PUBLIC_RPC_URL=
 
-# LOOPITERNS ERC-721 on Robinhood (4663). Empty / zero = mint disabled.
-# Set to the v2 (voucher mint) contract address after deploy.
+# LOOPITERNS ERC-721. The Robinhood (4663) deployment is RETIRED — this will
+# hold the Circle Arc testnet (5042002) contract address after the pivot.
+# Empty / zero = mint disabled.
+# OPERATOR NOTE: on Vercel, remove the Robinhood value of
+# NEXT_PUBLIC_LOOPITERNS_ADDRESS (and the Robinhood NEXT_PUBLIC_RPC_URL if
+# set) and redeploy — the LOOPITERNS mint + inventory UI hides itself; art
+# files stay.
 NEXT_PUBLIC_LOOPITERNS_ADDRESS=
 # Optional fallback if mintPrice() cannot be read. Wei only, no USD.
 # NEXT_PUBLIC_LOOPITERNS_MINT_PRICE_WEI=
