@@ -1,15 +1,17 @@
 /**
- * Layout verification for the fixed-resolution playfield (throwaway driver).
+ * Layout verification for the responsive playfield + NEW-restart stability.
  *
  *   1. npm run dev (already running)
  *   2. npx tsx scripts/verify-playfield.ts
  *
- * Checks, at a desktop and a phone viewport:
- *   - the sim/canvas backing store is the fixed 720×720 WORLD,
+ * The playfield dims are derived from the viewport at run start (full-bleed
+ * portrait on phones, letterboxed on wide screens) and stay LOCKED for the
+ * whole session — checks, at a desktop and a phone viewport:
+ *   - the canvas backing store matches the viewport-derived sim dims,
  *   - tapping NEW (mid-run restart) keeps the canvas at the exact same
- *     CSS size/position (the disjointed-world bug),
- *   - the playfield frame is a square, centered on wide screens, full
- *     width on phones, with the HUD inside it.
+ *     CSS size/position AND the same sim dims (the disjointed-world bug),
+ *   - phones render full-bleed portrait (not a square),
+ *   - wide screens letterbox + center the canvas.
  */
 
 import { chromium } from "playwright";
@@ -44,7 +46,6 @@ const WALLET_STUB = `
 type Measure = {
   canvas: { x: number; y: number; w: number; h: number };
   backing: { w: number; h: number };
-  wrapper: { x: number; y: number; w: number; h: number };
   viewport: { w: number; h: number };
 };
 
@@ -54,13 +55,10 @@ async function measure(page: import("playwright").Page): Promise<Measure> {
       "canvas[aria-label='LOOPTERNITY game canvas']",
     ) as HTMLCanvasElement | null;
     if (!canvas) throw new Error("game canvas not found");
-    const wrap = canvas.parentElement as HTMLElement;
     const cr = canvas.getBoundingClientRect();
-    const wr = wrap.getBoundingClientRect();
     return {
       canvas: { x: cr.x, y: cr.y, w: cr.width, h: cr.height },
       backing: { w: canvas.width, h: canvas.height },
-      wrapper: { x: wr.x, y: wr.y, w: wr.width, h: wr.height },
       viewport: { w: window.innerWidth, h: window.innerHeight },
     };
   });
@@ -127,47 +125,49 @@ async function scenario(
   await page.screenshot({ path: join(SHOTS, `${label}-run2.png`) });
 
   console.log(
-    `  run1: canvas ${Math.round(before.canvas.w)}×${Math.round(before.canvas.h)} @ (${Math.round(before.canvas.x)},${Math.round(before.canvas.y)})  backing ${before.backing.w}×${before.backing.h}  wrapper ${Math.round(before.wrapper.w)}×${Math.round(before.wrapper.h)}`,
+    `  run1: canvas ${Math.round(before.canvas.w)}×${Math.round(before.canvas.h)} @ (${Math.round(before.canvas.x)},${Math.round(before.canvas.y)})  backing ${before.backing.w}×${before.backing.h}`,
   );
   console.log(
     `  run2: canvas ${Math.round(after.canvas.w)}×${Math.round(after.canvas.h)} @ (${Math.round(after.canvas.x)},${Math.round(after.canvas.y)})  backing ${after.backing.w}×${after.backing.h}`,
   );
 
-  check(
-    before.backing.w === 720 && before.backing.h === 720,
-    `fixed 720×720 world (backing ${before.backing.w}×${before.backing.h})`,
-  );
-  check(
-    after.backing.w === 720 && after.backing.h === 720,
-    `world still 720×720 after NEW (backing ${after.backing.w}×${after.backing.h})`,
-  );
+  // --- NEW-restart stability (the bug this guards against) ---
   check(
     approx(before.canvas.w, after.canvas.w) &&
       approx(before.canvas.h, after.canvas.h) &&
       approx(before.canvas.x, after.canvas.x) &&
       approx(before.canvas.y, after.canvas.y),
-    "NEW keeps the canvas at the same size AND position (no disjointed world)",
+    "NEW keeps the canvas at the same size AND position",
   );
   check(
-    approx(before.wrapper.w, before.wrapper.h, 2),
-    `playfield frame is square (${Math.round(before.wrapper.w)}×${Math.round(before.wrapper.h)})`,
+    before.backing.w === after.backing.w && before.backing.h === after.backing.h,
+    `NEW keeps the sim dims (backing ${before.backing.w}×${before.backing.h} → ${after.backing.w}×${after.backing.h})`,
   );
+
+  // --- responsive sizing (viewport-derived, not a fixed square) ---
   check(
-    approx(before.canvas.w, before.wrapper.w) &&
-      approx(before.canvas.h, before.wrapper.h),
-    "canvas fills the playfield frame",
+    approx(before.backing.w, before.canvas.w) &&
+      approx(before.backing.h, before.canvas.h),
+    "backing store matches the rendered size (viewport-derived sim dims)",
   );
-  if (viewport.width > viewport.height) {
-    const side = Math.min(before.wrapper.w, before.wrapper.h);
+  if (viewport.width < viewport.height) {
     check(
-      approx(before.wrapper.x, (before.viewport.w - side) / 2, 4),
-      `frame horizontally centered on desktop (x=${Math.round(before.wrapper.x)}, expected ~${Math.round((before.viewport.w - side) / 2)})`,
+      approx(before.canvas.w, before.viewport.w, 2),
+      "phone: canvas is full-bleed width",
+    );
+    check(
+      before.canvas.h > before.canvas.w + 60,
+      `phone: canvas is portrait full-bleed, not a square (${Math.round(before.canvas.w)}×${Math.round(before.canvas.h)})`,
     );
   } else {
+    const side = Math.min(before.canvas.w, before.canvas.h);
     check(
-      approx(before.wrapper.x, 0, 2) &&
-        approx(before.wrapper.w, before.viewport.w, 4),
-      "frame is full-width on phone",
+      approx(before.canvas.w, before.canvas.h, 2),
+      "desktop: canvas letterboxes to the WORLD aspect (square) by height",
+    );
+    check(
+      approx(before.canvas.x, (before.viewport.w - side) / 2, 4),
+      `desktop: canvas centered (x=${Math.round(before.canvas.x)}, expected ~${Math.round((before.viewport.w - side) / 2)})`,
     );
   }
   check(errors.length === 0, `no console errors${errors.length ? `: ${errors.slice(0, 3).join(" | ")}` : ""}`);

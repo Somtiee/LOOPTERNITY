@@ -124,29 +124,6 @@ export default function GameApp() {
   const [previousBest, setPreviousBest] = useState(0);
   const inputRef = useRef<KeyboardInput | null>(null);
   const recordedRef = useRef(false);
-  const playAreaRef = useRef<HTMLDivElement | null>(null);
-  // Side of the fixed-aspect playfield frame (square for the 720×720
-  // world): the largest square that fits the screen area. Canvas, HUD and
-  // virtual pad all live inside it, so the UI hugs the playfield on any
-  // screen — window size / browser zoom only scale the whole frame, never
-  // how much world is visible.
-  const [playSide, setPlaySide] = useState(0);
-
-  useEffect(() => {
-    // The play area only exists on the "playing" screen — re-attach the
-    // observer each time we enter it (the ref is null on the menu screen,
-    // where this effect first runs).
-    if (screen !== "playing") return;
-    const el = playAreaRef.current;
-    if (!el) return;
-    const measure = () => {
-      const r = el.getBoundingClientRect();
-      setPlaySide(Math.floor(Math.min(r.width, r.height)));
-    };
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [screen]);
 
   const onHud = useCallback((next: HudSnapshot) => {
     setHud((prev) => {
@@ -433,63 +410,52 @@ export default function GameApp() {
       }}
     >
       <div className="relative flex h-full max-h-dvh w-full flex-col items-center">
-        <div
-          ref={playAreaRef}
-          className="relative flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden shadow-[0_0_80px_rgba(0,0,0,0.45)]"
-        >
-          <div
-            className="relative"
-            style={{
-              width: playSide > 0 ? playSide : "100%",
-              height: playSide > 0 ? playSide : "100%",
-            }}
-          >
-            <GameCanvas
-              key={runKey}
-              themeId={activeThemeId}
-              difficultyId={runDifficultyId}
-              characterId={characterId}
-              onHud={onHud}
-              restartToken={restartToken}
-              paused={paused}
-              inputRef={inputRef}
-              keyboardRestart
-              disableCanvasTouch={coarsePointer}
-              modifiers={runModifiers}
-              mode={mode}
-              equippedRarity={equippedRarity}
-              equippedTokenId={equippedTokenId}
-              sessionSeed={runSession?.seed ?? null}
-              onRunRecord={mode === "p2m" ? handleRunRecord : undefined}
-            />
-            <GameHUD
-              hud={hud}
-              accent={accent}
-              difficultyLabel={difficultyLabel}
-              paused={paused}
-              mode={mode}
-              isNewBest={newBest}
-              previousBest={previousBest}
-              onPauseToggle={togglePause}
-              onRestart={restart}
-              onMenu={backToMenu}
-              touchControls={coarsePointer}
-              runSessionId={runSession?.sessionId ?? null}
-              runRecord={runRecord}
-            />
-            <VirtualPad
-              inputRef={inputRef}
-              accent={accent}
-              visible={
-                coarsePointer &&
-                !paused &&
-                hud.phase !== "gameover"
-              }
-              freezeReady={hud.freezeReady}
-              freezeActive={hud.freezeActive}
-              tsunamiReady={hud.tsunamiReady}
-            />
-          </div>
+        <div className="relative flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden shadow-[0_0_80px_rgba(0,0,0,0.45)]">
+          <GameCanvas
+            key={runKey}
+            themeId={activeThemeId}
+            difficultyId={runDifficultyId}
+            characterId={characterId}
+            onHud={onHud}
+            restartToken={restartToken}
+            paused={paused}
+            inputRef={inputRef}
+            keyboardRestart
+            disableCanvasTouch={coarsePointer}
+            modifiers={runModifiers}
+            mode={mode}
+            equippedRarity={equippedRarity}
+            equippedTokenId={equippedTokenId}
+            sessionSeed={runSession?.seed ?? null}
+            onRunRecord={mode === "p2m" ? handleRunRecord : undefined}
+          />
+          <GameHUD
+            hud={hud}
+            accent={accent}
+            difficultyLabel={difficultyLabel}
+            paused={paused}
+            mode={mode}
+            isNewBest={newBest}
+            previousBest={previousBest}
+            onPauseToggle={togglePause}
+            onRestart={restart}
+            onMenu={backToMenu}
+            touchControls={coarsePointer}
+            runSessionId={runSession?.sessionId ?? null}
+            runRecord={runRecord}
+          />
+          <VirtualPad
+            inputRef={inputRef}
+            accent={accent}
+            visible={
+              coarsePointer &&
+              !paused &&
+              hud.phase !== "gameover"
+            }
+            freezeReady={hud.freezeReady}
+            freezeActive={hud.freezeActive}
+            tsunamiReady={hud.tsunamiReady}
+          />
         </div>
 
         <div className="relative flex h-8 shrink-0 items-center justify-end bg-[#070309] px-2 pb-[env(safe-area-inset-bottom)]">
