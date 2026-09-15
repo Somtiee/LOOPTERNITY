@@ -55,6 +55,7 @@ import type {
 } from "../types";
 import { createRng, randRange, type Rng } from "./rng";
 import { SIM_TICK, expLerp, simHypot, simSin } from "./simMath";
+import { climbScore, type RunScoreStats } from "../score";
 
 export type PlayerState = {
   x: number;
@@ -109,6 +110,9 @@ export type ClimbSimOptions = {
 
 const NO_EVENTS: SimEvent[] = [];
 
+/** Player spawn height (world y). The score's vertical term starts here. */
+const PLAYER_START_Y = 120;
+
 /** Mirrors the `name` on each ThemePalette (kept pure here — no palette import). */
 const SIM_THEME_NAMES: Record<ThemeId, string> = {
   volcanic: "Volcanic Eruption",
@@ -158,6 +162,16 @@ export class ClimbSim {
   nearMissCount = 0;
   hitsTaken = 0;
 
+  // --- Score accumulation (pure arithmetic — see src/game/score.ts) --------
+  /** Highest world y reached (climb px = peakY − start). Never decreases. */
+  peakY = PLAYER_START_Y;
+  /** Last post-clamp x — deltas from it sum into steerPx. */
+  private lastX = 0;
+  /** Cumulative horizontal travel after the wall clamp. */
+  steerPx = 0;
+  /** Seconds spent with boost actually applying to the climb. */
+  boostSeconds = 0;
+
   player: PlayerState = {
     x: 0,
     y: 0,
@@ -194,7 +208,7 @@ export class ClimbSim {
 
     this.player = {
       x: this.width / 2 - PLAYER.width / 2,
-      y: 120,
+      y: PLAYER_START_Y,
       vx: 0,
       vy: diff.climbSpeed * this.modifiers.speedMul,
       facing: 1,
@@ -203,6 +217,10 @@ export class ClimbSim {
       boostT: 0,
       boostCd: 0,
     };
+    this.peakY = this.player.y;
+    this.lastX = this.player.x;
+    this.steerPx = 0;
+    this.boostSeconds = 0;
 
     this.cameraY = this.player.y + 80;
     this.dangerY = this.player.y - DANGER.startOffset;
@@ -260,6 +278,10 @@ export class ClimbSim {
       this.tsunamiCharges -= 1;
       this.triggerTsunami();
     }
+
+    // Boost seconds count only while boost is actually applying to this
+    // tick's climb (boostMul below reads the same boostT).
+    if (this.player.boostT > 0) this.boostSeconds += dt;
 
     this.freezeT = Math.max(0, this.freezeT - dt);
     const frozen = this.freezeT > 0;
@@ -321,6 +343,11 @@ export class ClimbSim {
     const minX = WORLD.wallPadding;
     const maxX = this.width - WORLD.wallPadding - PLAYER.width;
     this.player.x = clamp(this.player.x, minX, maxX);
+    // Score stats: horizontal travel AFTER the wall clamp (hugging a wall
+    // earns nothing), and the high-water mark for climbed px.
+    this.steerPx += Math.abs(this.player.x - this.lastX);
+    this.lastX = this.player.x;
+    if (this.player.y > this.peakY) this.peakY = this.player.y;
 
     const dangerBonus = sinkEngaged
       ? this.sinkStage * SINK.dangerBonusPerStage[this.difficultyId]
@@ -1102,6 +1129,22 @@ export class ClimbSim {
 
   // --- Derived state -------------------------------------------------------
 
+  /** The score inputs accumulated so far (see src/game/score.ts). */
+  scoreStats(): RunScoreStats {
+    return {
+      climbPx: Math.max(0, this.peakY - PLAYER_START_Y),
+      steerPx: this.steerPx,
+      nearMisses: this.nearMissCount,
+      boostSeconds: this.boostSeconds,
+    };
+  }
+
+  /** Live run score — the client HUD and the server replay compute the
+   *  identical value from the same deterministic stats. */
+  score(): number {
+    return climbScore(this.scoreStats());
+  }
+
   /** World Y → screen Y (used for camera-relative danger proximity). */
   worldToScreen(y: number) {
     return this.cameraY - y + this.height * 0.55;
@@ -1139,6 +1182,7 @@ export class ClimbSim {
       shields: this.shields,
       maxShields: this.modifiers.maxShields,
       timeSurvived: this.time,
+      score: this.score(),
       height: Math.max(0, this.player.y),
       themeName: SIM_THEME_NAMES[this.themeId],
       boostReady: this.player.boostCd <= 0,

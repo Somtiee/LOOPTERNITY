@@ -92,7 +92,7 @@ function AbilityBtn({
 /** Mobile: discrete UP / LEFT / RIGHT. UP boosts. Abilities on the right. */
 export function VirtualPad({
   inputRef,
-  accent = "#00C805",
+  accent = "#3E8BFF",
   visible,
   freezeReady = false,
   freezeActive = false,
@@ -139,7 +139,7 @@ export function VirtualPad({
               label="TSUNAMI"
               busyLabel="TSUNAMI"
               aria="Unleash tsunami"
-              color="#00C805"
+              color="#3E8BFF"
               ready={tsunamiReady}
               onFire={() => inputRef.current?.requestTsunami()}
             />

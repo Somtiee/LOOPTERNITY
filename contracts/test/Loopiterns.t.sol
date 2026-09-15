@@ -151,7 +151,7 @@ contract LoopiternsTest is Test {
     Loopiterns internal nft;
     address internal owner = address(0xA11CE);
     address internal alice = address(0xA11);
-    uint256 internal constant PRICE = 0.01 ether;
+    uint256 internal constant PRICE = 0.65 ether; // native USDC (18 dec) on Arc
 
     /// @dev Server voucher signer (VOUCHER_SIGNER_PRIVATE_KEY on the app).
     uint256 internal signerPk = 0xC0FFEE;
@@ -334,9 +334,9 @@ contract LoopiternsTest is Test {
         nft.mintWithVoucher{value: PRICE}(5, block.timestamp + 300, 1, "");
     }
 
-    function testMaxFivePerWallet() public {
+    function testMaxTenPerWallet() public {
         vm.startPrank(alice);
-        for (uint256 i; i < 5; ++i) {
+        for (uint256 i; i < 10; ++i) {
             (uint256 deadline, uint256 nonce, bytes memory sig) =
                 _voucher(signerPk, alice, 0, block.timestamp + 600, _nextNonce());
             nft.mintWithVoucher{value: PRICE}(0, deadline, nonce, sig);
@@ -346,9 +346,9 @@ contract LoopiternsTest is Test {
         vm.expectRevert(Loopiterns.WalletCap.selector);
         nft.mintWithVoucher{value: PRICE}(0, deadline, nonce, sig);
         vm.stopPrank();
-        assertEq(nft.balanceOf(alice), 5);
+        assertEq(nft.balanceOf(alice), 10);
         uint256[] memory ids = nft.tokensOfOwner(alice);
-        assertEq(ids.length, 5);
+        assertEq(ids.length, 10);
     }
 
     function testRaritiesOfReturnsBatch() public {
@@ -412,8 +412,8 @@ contract LoopiternsTest is Test {
 
     function testOwnerSetMintPrice() public {
         vm.prank(owner);
-        nft.setMintPrice(0.02 ether);
-        assertEq(nft.mintPrice(), 0.02 ether);
+        nft.setMintPrice(0.7 ether);
+        assertEq(nft.mintPrice(), 0.7 ether);
 
         (uint256 deadline, uint256 nonce, bytes memory sig) =
             _voucher(signerPk, alice, 1, block.timestamp + 600, _nextNonce());
@@ -422,7 +422,7 @@ contract LoopiternsTest is Test {
         nft.mintWithVoucher{value: PRICE}(1, deadline, nonce, sig);
 
         vm.prank(alice);
-        nft.mintWithVoucher{value: 0.02 ether}(1, deadline, nonce, sig);
+        nft.mintWithVoucher{value: 0.7 ether}(1, deadline, nonce, sig);
         assertEq(nft.tokenRarity(1), 1);
     }
 
@@ -597,15 +597,15 @@ contract LoopiternsTest is Test {
         return false;
     }
 
-    /// @dev 5 mints per wallet; `count` must be divisible by 5.
+    /// @dev 10 mints per wallet; `count` must be divisible by 10.
     function _fillRarity(uint8 rarity, uint256 count) internal {
-        require(count % 5 == 0, "count");
-        uint256 wallets = count / 5;
+        require(count % 10 == 0, "count");
+        uint256 wallets = count / 10;
         for (uint256 w; w < wallets; ++w) {
             address who = address(uint160(uint256(keccak256(abi.encode(rarity, w)))));
             vm.deal(who, 10 ether);
             vm.startPrank(who);
-            for (uint256 i; i < 5; ++i) {
+            for (uint256 i; i < 10; ++i) {
                 (uint256 deadline, uint256 nonce, bytes memory sig) =
                     _voucher(signerPk, who, rarity, block.timestamp + 600, _nextNonce());
                 nft.mintWithVoucher{value: PRICE}(rarity, deadline, nonce, sig);

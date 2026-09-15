@@ -1,7 +1,7 @@
 import type { LoopiternRarityId } from "../mintTiers";
 import {
+  LOOPITERN_ACCENT,
   LOOPITERN_CREAM,
-  LOOPITERN_GREEN,
   LOOPITERN_INK,
   loopiternRarityPalette,
   type LoopiternRigPalette,
@@ -23,9 +23,11 @@ export type DrawLoopiternOpts = {
 
 /**
  * LOOPITERN collection runner. Origin = hitbox center, same footprint as
- * ASH/NOVA/NORD. Chunky mascot — not a stick figure. Rarity silhouettes
- * (leaf nubs / visor / ice horns / crest / halo / cape) always stay; DNA
- * only changes colors and the torso mark.
+ * ASH/NOVA/NORD. Leggy climber build: slim torso that rides high with a
+ * chest bib (never a gut), long bent legs swinging from hips below the
+ * torso, tucked pumping arms. Rarity silhouettes (leaf nubs / visor / ice
+ * horns / crest / halo / cape) always stay; DNA only changes colors and
+ * the torso mark.
  */
 export function drawLoopitern(
   ctx: CanvasRenderingContext2D,
@@ -33,7 +35,14 @@ export function drawLoopitern(
 ) {
   const { rarity, facing, bob, vxNorm, boosting } = opts;
   const palette = opts.palette ?? loopiternRarityPalette(rarity);
-  const stride = Math.sin(bob * 1.4) * 4;
+
+  // Run cycle: feet alternate — forward while lifted, planted while back —
+  // and each arm pumps against its same-side leg.
+  const cycle = bob * 1.4;
+  const swing = Math.sin(cycle);
+  const stride = swing * 4;
+  const lift = Math.max(0, Math.cos(cycle));
+  const liftBack = Math.max(0, -Math.cos(cycle));
   const lean = vxNorm * 3.5;
   const bounce = Math.sin(bob) * 1.8;
 
@@ -42,59 +51,87 @@ export function drawLoopitern(
   ctx.scale(facing, 1);
 
   if (boosting) {
-    ctx.fillStyle = `${LOOPITERN_GREEN}66`;
+    // Layered flame below.
+    ctx.fillStyle = `${LOOPITERN_ACCENT}66`;
     ctx.beginPath();
     ctx.moveTo(-9, 6);
-    ctx.lineTo(0, 24);
-    ctx.lineTo(9, 6);
+    ctx.quadraticCurveTo(-4, 15, 0, 24);
+    ctx.quadraticCurveTo(4, 15, 9, 6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = `${LOOPITERN_ACCENT}99`;
+    ctx.beginPath();
+    ctx.moveTo(-4.5, 6);
+    ctx.quadraticCurveTo(-2, 10, 0, 15);
+    ctx.quadraticCurveTo(2, 10, 4.5, 6);
+    ctx.closePath();
     ctx.fill();
   }
 
   ctx.fillStyle = "rgba(0,0,0,0.4)";
   ctx.beginPath();
-  ctx.ellipse(0, 3, 13, 3.6, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 3.4, 12.5, 3.4, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Legs — padded, not strokes
+  const footAy = 1.6 - lift * 2.6;
+  const footBy = 1.6 - liftBack * 2.6;
+  const footAx = -4.2 + stride * 0.8;
+  const footBx = 4.2 - stride * 0.8;
+
+  // Hips sit just under the torso's hem so the whole shin reads as leg.
+  const hipY = -16;
+  const kneeY = -8.4;
+
+  // Far arm (behind the torso), counter-phase with the far leg.
+  const farElbowX = -9.2 - swing * 1.5;
+  capsuleLimb(ctx, -6.4, -34, farElbowX, -27, 4.4, palette.fill);
+  capsuleLimb(ctx, farElbowX, -27, -5.6 - swing * 4, -20.5 - swing * 2.6, 3.6, palette.fill);
+
+  // Far leg — knee bent forward, shin swinging to its foot.
+  const farKneeX = -3.4 + 2.4 + lift * 1.7;
+  capsuleLimb(ctx, -3.4, hipY, farKneeX, kneeY, 5, palette.fill);
+  capsuleLimb(ctx, farKneeX, kneeY, footAx, footAy + 0.6, 4.2, palette.fill);
+  drawFootPad(ctx, footAx, footAy);
+
+  if (rarity === 4) drawWaveCape(ctx, bob, palette.cape ?? LOOPITERN_ACCENT);
+
+  // Torso — slim and high-riding: chest wider than the hips, and the hem
+  // stops above the hips so the legs carry the silhouette.
+  const chestW = rarity >= 3 ? 9.4 : 8.8;
   ctx.fillStyle = palette.fill;
-  roundedCapsule(ctx, -7.5, -8, 6.5, 12 + stride * 0.12);
-  roundedCapsule(ctx, 1.2, -8, 6.5, 12 - stride * 0.12);
-  ctx.fillStyle = LOOPITERN_INK;
   ctx.beginPath();
-  ctx.ellipse(-4.2, 3.2, 3.4, 1.6, 0, 0, Math.PI * 2);
-  ctx.ellipse(4.4, 3.2, 3.4, 1.6, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = LOOPITERN_CREAM;
-  ctx.beginPath();
-  ctx.ellipse(-4.2, 3.0, 2.2, 0.7, 0, 0, Math.PI * 2);
-  ctx.ellipse(4.4, 3.0, 2.2, 0.7, 0, 0, Math.PI * 2);
+  ctx.moveTo(-chestW, -33);
+  ctx.quadraticCurveTo(-chestW - 0.5, -24, -chestW * 0.7, -15.5);
+  ctx.quadraticCurveTo(0, -12.4, chestW * 0.7, -15.5);
+  ctx.quadraticCurveTo(chestW + 0.5, -24, chestW, -33);
+  ctx.quadraticCurveTo(0, -42, -chestW, -33);
+  ctx.closePath();
   ctx.fill();
 
-  if (rarity === 4) drawWaveCape(ctx, bob, palette.cape ?? LOOPITERN_GREEN);
-  if (rarity === 3) drawArmorPlates(ctx, palette.trim);
-
-  // Torso
-  ctx.fillStyle = palette.fill;
-  ctx.beginPath();
-  ctx.ellipse(0, -22, rarity >= 3 ? 13.5 : 12.2, 16, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Belly
+  // Chest bib — high on the torso, never a gut.
   ctx.fillStyle = palette.belly;
   ctx.beginPath();
-  ctx.ellipse(1.5, -18, 7.2, 9.5, 0.08, 0, Math.PI * 2);
+  ctx.ellipse(1.2, -30, 4.4, 6, 0.06, 0, Math.PI * 2);
   ctx.fill();
 
   // DNA sketchbook shading — light pencil strokes inside the shadow side
   // of the body, under the arms/head (J4 schema v4).
   if (palette.shading) {
-    drawSketchShading(ctx, palette.shading);
+    drawSketchShading(ctx, palette.shading, chestW);
   }
 
-  // Arms
-  ctx.fillStyle = palette.fill;
-  roundedCapsule(ctx, -14, -28, 5.2, 11 + stride * 0.2);
-  roundedCapsule(ctx, 8.5, -26, 5.2, 10 - stride * 0.2);
+  if (rarity === 3) drawArmorPlates(ctx, palette.trim);
+
+  // Near leg + pad.
+  const nearKneeX = 3.4 + 2.4 + liftBack * 1.7;
+  capsuleLimb(ctx, 3.4, hipY, nearKneeX, kneeY, 5, palette.fill);
+  capsuleLimb(ctx, nearKneeX, kneeY, footBx, footBy + 0.6, 4.2, palette.fill);
+  drawFootPad(ctx, footBx, footBy);
+
+  // Near arm — pumps against the near leg.
+  const nearElbowX = 9.2 + swing * 1.5;
+  capsuleLimb(ctx, 6.4, -34, nearElbowX, -27, 4.6, palette.fill);
+  capsuleLimb(ctx, nearElbowX, -27, 5.6 + swing * 4, -20.5 + swing * 2.6, 3.8, palette.fill);
 
   // Head
   const headY = -42;
@@ -158,22 +195,26 @@ const SHADING_WEIGHT_ALPHA: Record<string, number> = {
  * DNA sketchbook shading on the rig (schema v4). A few light strokes
  * clipped to the shadow side of the torso — a miniature of the stills'
  * pencil hatching, matched to the same style/weight/tone DNA. Drawn
- * between belly and arms so it reads as shading, not a decal.
+ * between bib and arms so it reads as shading, not a decal.
  */
 function drawSketchShading(
   ctx: CanvasRenderingContext2D,
   shading: NonNullable<LoopiternRigPalette["shading"]>,
+  chestW: number,
 ) {
   const alpha = SHADING_WEIGHT_ALPHA[shading.weight] ?? 0.24;
   ctx.save();
   // Clip to the lower-right (shadow side) of the torso so strokes never
-  // spill onto the belly patch or outside the body.
+  // spill onto the bib patch or outside the body.
   ctx.beginPath();
-  ctx.ellipse(1.5, -22, 12.2, 15.5, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, -27, chestW + 0.3, 13.4, 0, 0, Math.PI * 2);
   ctx.clip();
   ctx.beginPath();
-  ctx.rect(-2, -22, 16, 24);
+  ctx.rect(-2, -27, 14, 24);
   ctx.clip();
+  // Stroke coords were authored for the old, lower torso — shift them up
+  // to follow the slim high-riding silhouette.
+  ctx.translate(0, -4.5);
   ctx.globalAlpha = alpha;
   ctx.strokeStyle = shading.toneHex;
   ctx.fillStyle = shading.toneHex;
@@ -306,16 +347,41 @@ function strokeLines(
   }
 }
 
-function roundedCapsule(
+/** Filled capsule limb between two points — padded mascot arms and legs. */
+function capsuleLimb(
+  ctx: CanvasRenderingContext2D,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  w: number,
+  color: string,
+) {
+  const len = Math.hypot(x2 - x1, y2 - y1);
+  if (len < 0.001) return;
+  ctx.save();
+  ctx.translate(x1, y1);
+  ctx.rotate(Math.atan2(y2 - y1, x2 - x1));
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.roundRect(0, -w / 2, len, w, w / 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+/** Ink foot pad + cream highlight, glued to a swinging foot. */
+function drawFootPad(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
-  w: number,
-  h: number,
 ) {
-  const r = Math.min(w, h) / 2;
+  ctx.fillStyle = LOOPITERN_INK;
   ctx.beginPath();
-  ctx.roundRect(x, y, w, h, r);
+  ctx.ellipse(x, y + 1.3, 3.3, 1.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = LOOPITERN_CREAM;
+  ctx.beginPath();
+  ctx.ellipse(x, y + 1.1, 2.1, 0.65, 0, 0, Math.PI * 2);
   ctx.fill();
 }
 
@@ -327,22 +393,22 @@ function drawLeafNubs(
 ) {
   ctx.fillStyle = trim;
   ctx.beginPath();
-  ctx.ellipse(-7, headY - headR + 2, 3.2, 5.5, -0.5, 0, Math.PI * 2);
-  ctx.ellipse(6.5, headY - headR + 1, 3.0, 5.2, 0.45, 0, Math.PI * 2);
+  ctx.ellipse(-7.6, headY - headR + 2.5, 4.2, 7.4, -0.55, 0, Math.PI * 2);
+  ctx.ellipse(7.1, headY - headR + 1.5, 4.0, 7.0, 0.5, 0, Math.PI * 2);
   ctx.fill();
 }
 
 function drawVisor(ctx: CanvasRenderingContext2D, headY: number) {
   ctx.fillStyle = LOOPITERN_INK;
   ctx.beginPath();
-  ctx.roundRect(-8.5, headY - 4.2, 17, 5.4, 2.2);
+  ctx.roundRect(-9.6, headY - 5.2, 19.2, 6.6, 2.8);
   ctx.fill();
   ctx.fillStyle = LOOPITERN_CREAM;
   ctx.beginPath();
-  ctx.roundRect(-7.2, headY - 3.2, 14.4, 3.2, 1.4);
+  ctx.roundRect(-8.2, headY - 4.1, 16.4, 4.2, 1.8);
   ctx.fill();
-  ctx.fillStyle = LOOPITERN_GREEN;
-  ctx.fillRect(-6, headY - 2.2, 12, 1.2);
+  ctx.fillStyle = LOOPITERN_ACCENT;
+  ctx.fillRect(-6.8, headY - 2.6, 13.6, 1.6);
 }
 
 function drawIceHorns(
@@ -353,11 +419,11 @@ function drawIceHorns(
   ctx.fillStyle = "#d8fff8";
   ctx.beginPath();
   ctx.moveTo(-6, headY - headR + 3);
-  ctx.lineTo(-9, headY - headR - 9);
+  ctx.lineTo(-10, headY - headR - 15);
   ctx.lineTo(-2.5, headY - headR + 1);
   ctx.closePath();
   ctx.moveTo(5, headY - headR + 2);
-  ctx.lineTo(9.5, headY - headR - 10);
+  ctx.lineTo(10.5, headY - headR - 16);
   ctx.lineTo(2, headY - headR + 1);
   ctx.closePath();
   ctx.fill();
@@ -374,12 +440,12 @@ function drawArmorPlates(
 ) {
   ctx.fillStyle = LOOPITERN_CREAM;
   ctx.beginPath();
-  ctx.roundRect(-11, -30, 8, 7, 2);
-  ctx.roundRect(3, -30, 8, 7, 2);
+  ctx.roundRect(-9.4, -38.5, 6.6, 6, 2);
+  ctx.roundRect(2.8, -38.5, 6.6, 6, 2);
   ctx.fill();
   ctx.fillStyle = trim;
-  ctx.fillRect(-10, -27, 6, 2);
-  ctx.fillRect(4, -27, 6, 2);
+  ctx.fillRect(-8.4, -36, 4.6, 2);
+  ctx.fillRect(3.8, -36, 4.6, 2);
 }
 
 function drawCrest(
@@ -390,13 +456,13 @@ function drawCrest(
 ) {
   ctx.fillStyle = LOOPITERN_CREAM;
   ctx.beginPath();
-  ctx.moveTo(-4, headY - headR + 2);
-  ctx.lineTo(0, headY - headR - 7);
-  ctx.lineTo(4, headY - headR + 2);
+  ctx.moveTo(-5.2, headY - headR + 2);
+  ctx.lineTo(0, headY - headR - 12.5);
+  ctx.lineTo(5.2, headY - headR + 2);
   ctx.closePath();
   ctx.fill();
   ctx.fillStyle = trim;
-  ctx.fillRect(-1.2, headY - headR - 5, 2.4, 6);
+  ctx.fillRect(-1.5, headY - headR - 8.5, 3, 9.5);
 }
 
 function drawHalo(
@@ -404,16 +470,16 @@ function drawHalo(
   headY: number,
   headR: number,
 ) {
-  ctx.strokeStyle = "#c8ff9a";
-  ctx.lineWidth = 2.2;
+  ctx.strokeStyle = "#c8e4ff";
+  ctx.lineWidth = 3.2;
   ctx.beginPath();
-  ctx.ellipse(0, headY - headR - 4, 9, 3.2, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, headY - headR - 5, 10, 3.6, 0, 0, Math.PI * 2);
   ctx.stroke();
-  ctx.fillStyle = "#fff6c8";
+  ctx.fillStyle = "#f2f8ff";
   ctx.beginPath();
-  ctx.arc(-5, headY - headR - 4, 1.4, 0, Math.PI * 2);
-  ctx.arc(5, headY - headR - 4, 1.4, 0, Math.PI * 2);
-  ctx.arc(0, headY - headR - 7, 1.6, 0, Math.PI * 2);
+  ctx.arc(-5.6, headY - headR - 5, 1.7, 0, Math.PI * 2);
+  ctx.arc(5.6, headY - headR - 5, 1.7, 0, Math.PI * 2);
+  ctx.arc(0, headY - headR - 8.6, 1.9, 0, Math.PI * 2);
   ctx.fill();
 }
 
@@ -425,16 +491,16 @@ function drawWaveCape(
   const w = Math.sin(bob * 0.9) * 2;
   ctx.fillStyle = withAlpha(capeTint, 0.45);
   ctx.beginPath();
-  ctx.moveTo(6, -28);
-  ctx.quadraticCurveTo(18 + w, -18, 16, -4);
-  ctx.quadraticCurveTo(10, -10, 4, -16);
+  ctx.moveTo(4.6, -32);
+  ctx.quadraticCurveTo(16 + w, -20, 14, -4);
+  ctx.quadraticCurveTo(8, -10, 2.5, -18);
   ctx.closePath();
   ctx.fill();
   ctx.strokeStyle = withAlpha(capeTint, 0.7);
   ctx.lineWidth = 1.4;
   ctx.beginPath();
-  ctx.moveTo(8, -22);
-  ctx.quadraticCurveTo(15 + w, -14, 14, -6);
+  ctx.moveTo(6.5, -24);
+  ctx.quadraticCurveTo(13 + w, -14, 12, -6);
   ctx.stroke();
 }
 

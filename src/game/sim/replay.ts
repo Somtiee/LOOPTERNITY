@@ -3,8 +3,8 @@
  *
  * replayRun re-runs a claimed run from the session seed + recorded input
  * log through the exact same deterministic ClimbSim the browser played.
- * If the replay doesn't genuinely survive the rarity gate, no voucher is
- * signed — posting { timeSurvived: 9999 } from a console buys nothing.
+ * If the replay doesn't genuinely reach the rarity's score gate, no voucher
+ * is signed — posting { score: 999999 } from a console buys nothing.
  */
 
 import type { DifficultyId, ThemeId } from "../types";
@@ -14,8 +14,10 @@ import { createTickDecoder, type RunInputLog } from "./inputLog";
 import { MAX_REPLAY_TICKS } from "./simMath";
 
 export type ReplayResult = {
-  /** Seconds the replayed run survived (authoritative — not the claim). */
+  /** Seconds the replayed run survived (sanity signal, not the gate). */
   timeSurvived: number;
+  /** Replay score (authoritative — computed here, never trusted from the client). */
+  score: number;
   /** "gameover" = the log's death reproduced; "playing" = the log just ends. */
   phase: "playing" | "gameover";
   /** Ticks the sim actually executed before the run ended. */
@@ -48,6 +50,7 @@ export function replayRun(opts: ReplayOptions): ReplayResult {
   }
   return {
     timeSurvived: sim.time,
+    score: sim.score(),
     phase: sim.phase,
     ticks: sim.tick,
   };

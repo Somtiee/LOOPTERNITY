@@ -1,13 +1,13 @@
-import { CHAIN_LABEL, ROBINHOOD_CHAIN, WRONG_NETWORK_HINT } from "./config";
+import { CHAIN_LABEL, ARC_CHAIN, WRONG_NETWORK_HINT } from "./config";
 
 export function chainSwitchHint(chainId: number): string {
   if (chainId === 1) {
-    return `Switch to ${CHAIN_LABEL} (${ROBINHOOD_CHAIN.id}), not Ethereum L1`;
+    return `Switch to ${CHAIN_LABEL} (${ARC_CHAIN.id}), not Ethereum L1`;
   }
   if (chainId === 8453 || chainId === 84532) {
     return `Switch to ${CHAIN_LABEL} — this app is not on Base`;
   }
-  if (chainId !== ROBINHOOD_CHAIN.id) {
+  if (chainId !== ARC_CHAIN.id) {
     return WRONG_NETWORK_HINT;
   }
   return WRONG_NETWORK_HINT;
@@ -31,6 +31,18 @@ function rawMessage(e: unknown): string {
   } catch {
     return String(e);
   }
+}
+
+/**
+ * True when the error is a transient network/RPC failure (public Arc RPC
+ * dropped, timed out, or rate-limited) — not a chain revert. Such errors
+ * are always retryable, and the wallet may still reach Arc through its
+ * own RPC even when ours cannot.
+ */
+export function isReachabilityError(raw: string): boolean {
+  return /failed to fetch|network error|http request failed|fetch failed|timeout|timed out|econnrefused|429|rate limit|json-rpc|rpc error/i.test(
+    raw,
+  );
 }
 
 /** Human wallet / RPC errors. Always retryable copy — never dump a stack. */
@@ -65,12 +77,8 @@ export function walletTxError(
   if (/EnforcedPause/i.test(raw)) {
     return "Minting is paused.";
   }
-  if (
-    /failed to fetch|network error|http request failed|fetch failed|timeout|timed out|econnrefused|429|rate limit|json-rpc|rpc error/i.test(
-      raw,
-    )
-  ) {
-    return "Could not reach Robinhood Chain. Check your connection and retry.";
+  if (isReachabilityError(raw)) {
+    return "Could not reach Arc. Check your connection and retry.";
   }
 
   const trimmed = raw.replace(/^Error:\s*/i, "").trim();

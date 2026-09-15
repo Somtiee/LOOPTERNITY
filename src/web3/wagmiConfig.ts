@@ -15,7 +15,7 @@ import { createConfig, createStorage, noopStorage } from "wagmi";
 import { injected } from "wagmi/connectors";
 import {
   APP_NAME,
-  ROBINHOOD_CHAIN,
+  ARC_CHAIN,
   transports,
   walletConnectProjectId,
 } from "./config";
@@ -69,7 +69,7 @@ const rainbowConnectors = walletConnectProjectId
  * Do not import this module from a Server Component.
  */
 export const wagmiConfig = createConfig({
-  chains: [ROBINHOOD_CHAIN],
+  chains: [ARC_CHAIN],
   connectors: walletConnectProjectId
     ? rainbowConnectors
     : [injectedConnector],

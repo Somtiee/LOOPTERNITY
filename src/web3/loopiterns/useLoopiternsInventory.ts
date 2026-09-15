@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useReadContract, useReadContracts } from "wagmi";
 import { isLoopiternRarityId } from "@/game/mintTiers";
-import { ROBINHOOD_CHAIN_ID } from "@/web3/config";
+import { ARC_CHAIN_ID } from "@/web3/config";
 import { useWalletSession } from "@/web3/hooks/useWalletSession";
 import { walletTxError } from "@/web3/walletErrors";
 import { loopiternsAbi } from "./abi";
@@ -18,16 +18,16 @@ const PAGE_SIZE = 24;
 export type OwnedLoopitern = EquippedLoopitern;
 
 export function useLoopiternsInventory() {
-  const { address, hasWallet, onRobinhood } = useWalletSession();
+  const { address, hasWallet, onArc } = useWalletSession();
   const contract = getLoopiternsAddress();
-  const enabled = Boolean(contract && address && onRobinhood);
+  const enabled = Boolean(contract && address && onArc);
 
   const tokensQuery = useReadContract({
     address: contract,
     abi: loopiternsAbi,
     functionName: "tokensOfOwner",
     args: address ? [address] : undefined,
-    chainId: ROBINHOOD_CHAIN_ID,
+    chainId: ARC_CHAIN_ID,
     query: { enabled },
   });
 
@@ -57,7 +57,7 @@ export function useLoopiternsInventory() {
       abi: loopiternsAbi,
       functionName: "tokenRarity" as const,
       args: [id] as const,
-      chainId: ROBINHOOD_CHAIN_ID,
+      chainId: ARC_CHAIN_ID,
     })),
     query: { enabled: enabled && ids.length > 0 },
   });
@@ -83,7 +83,7 @@ export function useLoopiternsInventory() {
   // One human message (walletErrors.ts) for RPC / wallet read hiccups.
   const errorMessage = useMemo(() => {
     if (!tokensQuery.isError) return null;
-    return walletTxError(tokensQuery.error, ROBINHOOD_CHAIN_ID, "load");
+    return walletTxError(tokensQuery.error, ARC_CHAIN_ID, "load");
   }, [tokensQuery.isError, tokensQuery.error]);
 
   const hasMore = allIds.length > shownCount;
@@ -94,7 +94,7 @@ export function useLoopiternsInventory() {
   return {
     configured: Boolean(contract),
     hasWallet,
-    onRobinhood,
+    onArc,
     loading,
     tokens,
     // Every owned id (not just the current page) — for ownership checks.

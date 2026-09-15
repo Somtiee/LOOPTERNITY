@@ -6,7 +6,7 @@
  * One implementation of the recolor + sketchbook-shading pipeline, no duplicates.
  *
  * A composed still = the painted base `rarity-{r}.png` with
- *   (a) per-region recolor — the dominant body-green family remapped to the
+ *   (a) per-region recolor — the dominant body-blue family remapped to the
  *       DNA accent tint, the cream/belly family to the DNA belly tint, the
  *       eye pixels to the DNA eye tint (luminance preserved so the painting
  *       still reads as a painting), and
@@ -31,6 +31,7 @@ import path from "node:path";
 import sharp from "sharp";
 import { darken } from "./loopiternArt";
 import {
+  ACCENT_TINTS,
   dnaFromTokenId,
   findShadingTone,
   findTint,
@@ -117,7 +118,7 @@ function hslToRgb(hsl: Hsl): [number, number, number] {
 /* Recolor — color-distance family bucketing on the raw base pixels    */
 /* ------------------------------------------------------------------ */
 
-const BODY_HUE: [number, number] = [70, 165];
+const BODY_HUE: [number, number] = [195, 255];
 const CREAM_HUE: [number, number] = [28, 62];
 const CREAM_MIN_L = 0.35;
 const BG_MAX_L = 0.05;
@@ -158,7 +159,7 @@ export type RecolorTints = { accent: string; belly: string; eye: string };
 
 /**
  * Recolor the base painting. Family bucketing by HSL distance:
- *   body-green family → accent tint, cream family → belly tint (both keep
+ *   body-blue family → accent tint, cream family → belly tint (both keep
  *   the pixel's luminance), dark eye pixels (dark surrounded by cream) →
  *   eye tint, other dark outline pixels follow the accent hue.
  *
@@ -456,10 +457,13 @@ function buildShadingOverlay(
 /* Still composition                                                   */
 /* ------------------------------------------------------------------ */
 
+/** Catalog-head fallback — matches the rig's fallback in loopiternArt. */
+const ACCENT_FALLBACK = ACCENT_TINTS[0]!.hex;
+
 function dnaTints(dna: LoopiternDna): RecolorTints {
   return {
     accent:
-      findTint("accentTint", dna.accentTint)?.hex ?? "#00a83f",
+      findTint("accentTint", dna.accentTint)?.hex ?? ACCENT_FALLBACK,
     belly: findTint("bellyTint", dna.bellyTint)?.hex ?? "#f4ead4",
     eye: findTint("eyeTint", dna.eyeTint)?.hex ?? "#e8c84a",
   };
@@ -467,7 +471,7 @@ function dnaTints(dna: LoopiternDna): RecolorTints {
 
 /** Resolve the DNA shading triple into a compositor spec. */
 function shadingSpec(dna: LoopiternDna): ShadingSpec {
-  const accent = findTint("accentTint", dna.accentTint)?.hex ?? "#00a83f";
+  const accent = findTint("accentTint", dna.accentTint)?.hex ?? ACCENT_FALLBACK;
   const toneHex = findShadingTone(dna.shadingTone)?.hex ?? darken(accent, 0.45);
   const h = toneHex.replace("#", "");
   return {

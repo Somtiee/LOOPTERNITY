@@ -2,22 +2,24 @@
  * LOOPITERNS mint voucher signer (v2 voucher-gated mint).
  *
  * POST /api/loopitern/voucher
- *   body: { address, rarity, timeSurvived, sessionId, inputLog }
+ *   body: { address, rarity, score, timeSurvived, sessionId, inputLog }
  *   →     { deadline, nonce, signature }
  *
- * The client survival time is spoofable, so the chain requires a
- * server-signed voucher. Three server-side gates stand between a claim and
- * a signature:
+ * A client-sent score is spoofable, so the chain requires a server-signed
+ * voucher. Three server-side gates stand between a claim and a signature:
  *
- *   1. claimed time vs the rarity gates (30/60/90/120/150s — same as client)
- *   2. run session wall clock: POST /api/loopitern/run-seed pins a seed at
- *      run start; real elapsed time must be ≥ the gate (defense in depth)
+ *   1. claimed score vs the rarity gates (SCORE 15_000/25_000/35_000/
+ *      45_000/60_000 — same numbers the client honors)
+ *   2. run session wall clock (sanity floor only): POST /api/loopitern/
+ *      run-seed pins a seed at run start; some real fraction of the tier's
+ *      old gate time must have passed since, so a fabricated 2-minute log
+ *      can't be POSTed the instant a session is issued
  *   3. REPLAY (the real gate): the client records every input it fed the
  *      deterministic ClimbSim; this route re-runs that log through the
  *      identical sim (same seed, same theme, P2M constants) and only signs
- *      if the replayed run genuinely ends in death at ≥ the gate time.
- *      Posting { timeSurvived: 9999 } from a console buys nothing — the
- *      replay is authoritative and a fabricated log doesn't survive it.
+ *      if the replayed run genuinely ends in death with a REPLAYED score
+ *      at or above the tier's gate. Posting { score: 999999 } from a
+ *      console buys nothing — the replayed score is the authority.
  *
  * The voucher itself is EIP-712 bound to (minter, rarity, deadline, nonce,
  * chainId, contract); the contract's ecrecover check plus the single-use
@@ -31,7 +33,7 @@
  *     → 503, never a signed voucher
  *   - VOUCHER_SIGNER_PRIVATE_KEY missing (server-only, gitignored)
  *     → 503, never a fake signature
- *   - rarity not unlocked by the REPLAYED time → 403
+ *   - rarity not unlocked by the REPLAYED score → 403
  *   - rarity out of range / bad address / bad log → 400 or 403
  *
  * VOUCHER_SIGNER_PRIVATE_KEY must be the key whose address was passed as
@@ -43,8 +45,8 @@ import { getAddress, hashTypedData, recoverAddress } from "viem";
 import { privateKeyToAddress, signTypedData } from "viem/accounts";
 import { NextResponse } from "next/server";
 import { getLoopiternsAddress } from "@/web3/loopiterns/address";
-import { ROBINHOOD_CHAIN_ID } from "@/web3/config";
-import { highestRarityForSurvival, isLoopiternRarityId, rarityById } from "@/game/mintTiers";
+import { ARC_CHAIN_ID } from "@/web3/config";
+import { highestRarityForScore, isLoopiternRarityId, rarityById } from "@/game/mintTiers";
 import { VANILLA_MODIFIERS } from "@/game/traits";
 import { parseRunInputLog } from "@/game/sim/inputLog";
 import { replayRun } from "@/game/sim/replay";
@@ -56,17 +58,40 @@ export const dynamic = "force-dynamic";
 
 /**
  * Request-shape limits (see requestGuards.ts). A legitimate voucher body is
- * a ~1-5 KB input log; anything past 64 KB is abuse or a broken client, and
- * it is refused before the replay sim ever runs. The replay itself is
- * CPU-bound (up to 36k sim ticks), so the per-IP limit is deliberately
- * tight: one voucher request per run is the honest rate.
+ * the recorded input log, which grows ~1.2 KB per second of run (a 30s run
+ * is ~35 KB, a 150s Legendary run ~180 KB, the 600s hard sim cap ~730 KB) —
+ * so the cap sits at 1 MB: every honest log fits with headroom, and anything
+ * past it is abuse or a broken client, refused before the replay sim runs.
+ * The replay itself is CPU-bound (up to 36k sim ticks), so the per-IP limit
+ * is deliberately tight: one voucher request per run is the honest rate.
  */
-const MAX_BODY_BYTES = 64 * 1024;
+const MAX_BODY_BYTES = 1024 * 1024;
 const RATE_LIMIT = { max: 6, windowMs: 60_000 };
 
 
 /** Voucher lifetime. The client mints immediately after receiving it. */
 const VOUCHER_TTL_SECONDS = 600;
+
+/**
+ * Session wall-clock floor, as a fraction of the tier's old survival gate
+ * (minSeconds). NOT a rarity gate — the replayed score decides rarity.
+ * This only stops a fabricated log from being POSTed the instant a session
+ * is issued. The fraction must stay below the fastest honest crossing: a
+ * maximally active run (boost uptime, dense near misses, constant steering)
+ * scores ~1.6-1.8× the distance-only rate, so a Legendary gate can be
+ * honestly crossed in ~65-70s of real play — 0.4 keeps the floor under
+ * that for every tier.
+ */
+const WALL_CLOCK_FLOOR_FACTOR = 0.4;
+
+/**
+ * How far the client's claimed score may drift from the replayed score
+ * before we call it a doctored claim. Both are computed by the same
+ * deterministic sim from the same log, so honest runs match to the point
+ * (~6 score per sim tick of boundary noise); 60 ≈ a tenth of a second of
+ * climb. The replayed score — not the claim — is the authority.
+ */
+const SCORE_MATCH_TOLERANCE = 60;
 
 /** Must match Loopiterns.sol EIP-712 domain + VOUCHER_TYPEHASH. */
 const VOUCHER_DOMAIN = {
@@ -151,20 +176,25 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "bad rarity" }, { status: 400 });
   }
 
+  const score = Number(rec.score);
+  if (!Number.isFinite(score) || score < 0) {
+    return NextResponse.json({ error: "bad score" }, { status: 400 });
+  }
   const timeSurvived = Number(rec.timeSurvived);
   if (!Number.isFinite(timeSurvived) || timeSurvived < 0) {
     return NextResponse.json({ error: "bad timeSurvived" }, { status: 400 });
   }
 
   // Server-side gate 1: only sign for a rarity the run CLAIMS to have
-  // reached (30/60/90/120/150s gates — same as the client honors).
-  const unlocked = highestRarityForSurvival(timeSurvived);
+  // reached (SCORE gates — same as the client honors). The claim is just a
+  // shape check; the replay below is the authority.
+  const unlocked = highestRarityForScore(score);
   if (!unlocked || rarity > unlocked.id) {
     return NextResponse.json(
       {
         error: unlocked
           ? `rarity ${rarity} not unlocked — this run reached ${unlocked.name}`
-          : "survive 30s (Common) to unlock a mint",
+          : "reach the Common score gate to unlock a mint",
       },
       { status: 403 },
     );
@@ -175,11 +205,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "bad rarity" }, { status: 400 });
   }
 
-  // Server-side gate 2 (wall clock, defense in depth): the session was
-  // issued when the run started; real time must have passed since — at
-  // least minSeconds for the rarity being minted. Gate on the MINTED
-  // rarity, not just the claimed one.
-  const sessionCheck = validateRunSession(rec.sessionId, mintedRarity.minSeconds);
+  // Server-side gate 2 (wall-clock sanity floor, NOT the rarity gate): the
+  // session was issued when the run started; some real fraction of the
+  // tier's old gate time must have passed since — a fabricated 2-minute
+  // log can't be POSTed instantly. Gate on the MINTED rarity, not just the
+  // claimed one.
+  const wallClockFloor = Math.ceil(mintedRarity.minSeconds * WALL_CLOCK_FLOOR_FACTOR);
+  const sessionCheck = validateRunSession(rec.sessionId, wallClockFloor);
   if (!sessionCheck.ok) {
     return NextResponse.json({ error: sessionCheck.error }, { status: 403 });
   }
@@ -212,18 +244,25 @@ export async function POST(req: Request) {
       { status: 403 },
     );
   }
+  // Desync canaries: both values come from the same deterministic sim, so
+  // an honest claim matches the replay to the tick.
   if (Math.abs(replay.timeSurvived - timeSurvived) > 0.75) {
-    // Cross-engine drift beyond the safety band, or a doctored claim.
     return NextResponse.json(
       { error: "run replay mismatch — play the run, then mint" },
       { status: 403 },
     );
   }
-  if (replay.timeSurvived < mintedRarity.minSeconds) {
-    const reached = Math.floor(replay.timeSurvived);
+  if (Math.abs(replay.score - score) > SCORE_MATCH_TOLERANCE) {
+    return NextResponse.json(
+      { error: "run replay mismatch — play the run, then mint" },
+      { status: 403 },
+    );
+  }
+  // The rarity decision: the REPLAYED score must reach the gate.
+  if (replay.score < mintedRarity.minScore) {
     return NextResponse.json(
       {
-        error: `run replay survived ${reached}s — the ${mintedRarity.name} gate is ${mintedRarity.minSeconds}s. Playing is the only way.`,
+        error: `run replay scored ${Math.floor(replay.score)} — the ${mintedRarity.name} gate is ${mintedRarity.minScore}. Playing is the only way.`,
       },
       { status: 403 },
     );
@@ -252,7 +291,7 @@ export async function POST(req: Request) {
   const signature = await signTypedData({
     domain: {
       ...VOUCHER_DOMAIN,
-      chainId: ROBINHOOD_CHAIN_ID,
+      chainId: ARC_CHAIN_ID,
       verifyingContract: contract,
     },
     types: VOUCHER_TYPES,
@@ -267,7 +306,7 @@ export async function POST(req: Request) {
     hash: hashTypedData({
       domain: {
         ...VOUCHER_DOMAIN,
-        chainId: ROBINHOOD_CHAIN_ID,
+        chainId: ARC_CHAIN_ID,
         verifyingContract: contract,
       },
       types: VOUCHER_TYPES,

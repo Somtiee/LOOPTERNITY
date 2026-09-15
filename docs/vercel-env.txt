@@ -3,27 +3,29 @@
 
 NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=
 
-# Optional READ FALLBACK RPC. Robinhood Chain mainnet (4663) is RETIRED —
-# remove any Robinhood value. Primary is always the chain's public RPC; this
-# URL is only tried when the public RPC fails. E.g. a chain-restricted
-# Alchemy HTTPS URL. NEXT_PUBLIC_ values are visible in the browser — use a
+# Optional READ FALLBACK RPC for Circle Arc testnet (5042002). Primary is
+# ALWAYS the chain's public RPC (https://rpc.testnet.arc.io); this URL is
+# only tried when the public RPC fails. E.g. a restrict-to-Arc Alchemy
+# HTTPS URL. NEXT_PUBLIC_ values are visible in the browser — use a
 # scoped/restricted key, never an admin key. Leave empty for public-only.
 # NEXT_PUBLIC_RPC_URL=
 
-# LOOPITERNS ERC-721. The Robinhood (4663) deployment is RETIRED — this will
-# hold the Circle Arc testnet (5042002) contract address after the pivot.
-# Empty / zero = mint disabled.
-# OPERATOR NOTE: on Vercel, remove the Robinhood value of
-# NEXT_PUBLIC_LOOPITERNS_ADDRESS (and the Robinhood NEXT_PUBLIC_RPC_URL if
-# set) and redeploy — the LOOPITERNS mint + inventory UI hides itself; art
-# files stay.
-NEXT_PUBLIC_LOOPITERNS_ADDRESS=
-# Optional fallback if mintPrice() cannot be read. Wei only, no USD.
+# LOOPITERNS ERC-721 on Circle Arc testnet (5042002). Set this on Vercel:
+#   NEXT_PUBLIC_LOOPITERNS_ADDRESS=0x991Ad2Bb19e57fB427250ec9AEEd312e60d21990
+# (deployed 2026-09-14 — see contracts/deployments/arc-testnet-5042002.json).
+# Empty / zero = mint disabled. The previous Robinhood Chain (4663)
+# deployment is RETIRED (swept + paused) — never point this back at it.
+NEXT_PUBLIC_LOOPITERNS_ADDRESS=0x991Ad2Bb19e57fB427250ec9AEEd312e60d21990
+# Optional fallback if mintPrice() cannot be read. Native-USDC units
+# (18 decimals, same shape as wei), e.g. 650000000000000000 for 0.65 USDC.
 # NEXT_PUBLIC_LOOPITERNS_MINT_PRICE_WEI=
 
 # Server-only (Vercel: NOT exposed to the client). Private key that signs
-# mint vouchers for /api/loopitern/voucher. Its public address must equal
-# MINT_SIGNER_ADDRESS in contracts/.env at deploy time.
+# mint vouchers for /api/loopitern/voucher. UNCHANGED from the retired
+# Robinhood v2 deployment — SAME signer key (address 0x486eCE21831ffa0766-
+# 1EF745746e2ec47a486222), already registered as mintSigner in the Arc
+# testnet contract. Its public address must equal MINT_SIGNER_ADDRESS in
+# contracts/.env at deploy time.
 # Generate: cast wallet new  (never commit the key)
 VOUCHER_SIGNER_PRIVATE_KEY=
 
@@ -42,4 +44,36 @@ VOUCHER_SIGNER_PRIVATE_KEY=
 #   Those belong only in contracts/.env (gitignored) on this machine.
 #   VOUCHER_SIGNER_PRIVATE_KEY above is the ONE server-side key on
 #   Vercel — it holds no funds, it only signs vouchers.
+# ---------------------------------------------------------------
+
+# ---------------------------------------------------------------
+# RUNBOOK — flipping to Arc MAINNET when it launches (~16 Sep 2026)
+#
+# The Arc mainnet chain id is not known yet — do NOT guess it and do not
+# scatter it as a literal anywhere. Steps, in order:
+#
+# 1. DEPLOY on the Arc mainnet RPC via prompt F's flow:
+#      cd contracts
+#      forge script script/DeployLoopiterns.s.sol:DeployLoopiterns \
+#        --rpc-url <arc-mainnet-rpc> --chain <arc-mainnet-chain-id> \
+#        --broadcast --slow
+#    (PRIVATE_KEY + MINT_PRICE_WEI come from contracts/.env; the voucher
+#    signer key does NOT change — reuse VOUCHER_SIGNER_PRIVATE_KEY above,
+#    its address is baked in as mintSigner by the deploy env.)
+# 2. RECORD a deployments JSON next to arc-testnet-5042002.json
+#    (e.g. arc-mainnet-<chainId>.json): address, deploy tx, block, rpc,
+#    explorer, and the on-chain cast checks (owner, mintSigner, mintPrice,
+#    paused, totalSupply, Multicall3). The testnet JSON is the template.
+# 3. SWAP NEXT_PUBLIC_LOOPITERNS_ADDRESS on Vercel (Production + Preview)
+#    to the new mainnet address, and update the address comment above.
+#    Redeploy. Never reuse the testnet address on mainnet.
+# 4. UPDATE the chain constants in src/web3/config.ts — chain id, public
+#    RPC, explorer origin, chain labels — IN THAT ONE FILE (it exists so
+#    the flip is a single-file edit). The chain id must come from config,
+#    never from scattered literals in components.
+# 5. VERIFY before announcing: forge test in contracts/, then the e2e
+#    scripts (scripts/e2e-replay.ts, scripts/e2e-browser.ts) against
+#    mainnet, and a manual mint click-through in a browser wallet.
+# 6. HISTORY: keep arc-testnet-5042002.json as-is (testnet record); add a
+#    short "retired" note to it only if the testnet contract is swept.
 # ---------------------------------------------------------------

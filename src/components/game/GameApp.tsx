@@ -47,7 +47,7 @@ import { useCoarsePointer } from "@/game/input/useCoarsePointer";
 
 type Screen = "menu" | "playing";
 
-/** P2M mint runs use a shared Medium climb so time gates stay fair. */
+/** P2M mint runs use a shared Medium climb so score gates stay fair. */
 const P2M_DIFFICULTY: DifficultyId = "medium";
 
 const INITIAL_HUD: HudSnapshot = {
@@ -55,6 +55,7 @@ const INITIAL_HUD: HudSnapshot = {
   shields: 3,
   maxShields: 3,
   timeSurvived: 0,
+  score: 0,
   height: 0,
   themeName: "Volcanic Eruption",
   boostReady: true,
@@ -71,23 +72,23 @@ const INITIAL_HUD: HudSnapshot = {
 };
 
 export default function GameApp() {
-  const { address, hasWallet, onRobinhood: walletOnRobinhood } =
+  const { address, hasWallet, onArc: walletOnArc } =
     useWalletSession();
   const { refresh } = usePlayerRegistry();
   const {
     tokenIds,
     loading: inventoryLoading,
-    onRobinhood,
+    onArc,
     configured,
     refetch: refetchInventory,
   } = useLoopiternsInventory();
   const supply = useLoopiternsSupply();
-  // A wallet at the 5/5 cap can't mint a P2M run — the chain would reject
+  // A wallet at the 10/10 cap can't mint a P2M run — the chain would reject
   // it — so P2M is locked for it. Like soldOut, a failed/unloaded read
   // never fakes the cap.
   const mintCapReached =
     configured &&
-    onRobinhood &&
+    onArc &&
     !inventoryLoading &&
     tokenIds.length >= MAX_LOOPITERNS_PER_WALLET;
   const coarsePointer = useCoarsePointer();
@@ -190,7 +191,7 @@ export default function GameApp() {
   }, [address]);
 
   useEffect(() => {
-    if (!address || !onRobinhood || !configured || inventoryLoading) return;
+    if (!address || !onArc || !configured || inventoryLoading) return;
     if (!equipped) return;
     // Checked against every owned id, not just the visible page — a token
     // beyond the current page must not be auto-unequipped.
@@ -204,7 +205,7 @@ export default function GameApp() {
     configured,
     equipped,
     inventoryLoading,
-    onRobinhood,
+    onArc,
     tokenIds,
   ]);
 
@@ -280,11 +281,11 @@ export default function GameApp() {
 
   const startRun = useCallback(() => {
     if (mode === "p2e") return;
-    // Connect-first: both modes need a wallet, P2M needs it on Robinhood
+    // Connect-first: both modes need a wallet, P2M needs it on Arc
     // Chain (the mint lives there). The menu gates this too — this is the
     // backstop.
     if (!hasWallet) return;
-    if (mode === "p2m" && !walletOnRobinhood) return;
+    if (mode === "p2m" && !walletOnArc) return;
     if (mode === "p2m" && (supply.soldOut || mintCapReached)) return;
     launchRun();
   }, [
@@ -293,7 +294,7 @@ export default function GameApp() {
     mintCapReached,
     mode,
     supply.soldOut,
-    walletOnRobinhood,
+    walletOnArc,
   ]);
 
   const restart = useCallback(() => {
@@ -334,9 +335,10 @@ export default function GameApp() {
     }
     recordedRef.current = true;
     if (mode !== "normal") return;
+    // Normal PBs are best SCORE per difficulty (time is flavor only).
     const result = address
-      ? recordNormalBest(address, difficultyId, hud.timeSurvived)
-      : recordGuestNormalBest(difficultyId, hud.timeSurvived);
+      ? recordNormalBest(address, difficultyId, hud.score)
+      : recordGuestNormalBest(difficultyId, hud.score);
     setNewBest(result.isNewBest);
     setPreviousBest(result.previous);
     if (result.isNewBest) audio.sfx("success");
@@ -345,7 +347,7 @@ export default function GameApp() {
     address,
     difficultyId,
     hud.phase,
-    hud.timeSurvived,
+    hud.score,
     mode,
     refresh,
     screen,
@@ -381,7 +383,7 @@ export default function GameApp() {
         soldOut={supply.soldOut}
         mintCapReached={mintCapReached}
         walletConnected={hasWallet}
-        onRobinhood={walletOnRobinhood}
+        onArc={walletOnArc}
       />
     );
   }

@@ -54,10 +54,15 @@ export type GameAudioHooks = {
   onTsunami?: () => void;
 };
 
-/** A finished, replayable run: the input log plus the run's honest clock. */
+/**
+ * A finished, replayable run: the input log plus the values the server's
+ * replay must reproduce (score is the rarity authority; time is a sanity
+ * signal).
+ */
 export type RunRecord = {
   inputLog: RunInputLog;
   timeSurvived: number;
+  score: number;
 };
 
 export type GameOptions = {
@@ -527,6 +532,7 @@ export class Game {
     const record: RunRecord = {
       inputLog: this.recorder.finish(this.sim.tick, this.sim.width, this.sim.height),
       timeSurvived: this.sim.time,
+      score: this.sim.score(),
     };
     this.recorder = null;
     this.onRunRecord(record);

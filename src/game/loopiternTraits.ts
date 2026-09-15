@@ -87,20 +87,22 @@ export const DNA_CHANNELS = [
 export type DnaChannel = (typeof DNA_CHANNELS)[number];
 
 /**
- * Accent tints recolor the dominant body-green family. The recolor keeps
+ * Accent tints recolor the dominant body-blue family. The recolor keeps
  * each pixel's luminance, so entries are separated by HUE (and saturation),
  * not by hex lightness — two same-hue accents would render as the same body.
+ * Ids/order/rarity gates are frozen (DNA picks index into this list); the
+ * Arc rework only moved the green-family entries into blue-family hues.
  */
 export const ACCENT_TINTS: readonly TintEntry[] = [
-  { id: "kelly", name: "Kelly", hex: "#00a83f" },
-  { id: "chartreuse", name: "Chartreuse", hex: "#b4e02a" },
-  { id: "teal", name: "Teal", hex: "#12b886" },
-  { id: "cyan", name: "Cyan", hex: "#29c4e0" },
+  { id: "kelly", name: "Amethyst", hex: "#9C4FE0" },
+  { id: "chartreuse", name: "Indigo", hex: "#6B55E8" },
+  { id: "teal", name: "Lagoon", hex: "#14D2D8" },
+  { id: "cyan", name: "Sky", hex: "#2A9BE0" },
   { id: "cobalt", name: "Cobalt", hex: "#3f6fe8" },
   { id: "rose", name: "Rose", hex: "#d94f6c" },
   { id: "ember", name: "Ember", hex: "#f07422" },
   { id: "gold", name: "Gold", hex: "#e8b52a" },
-  { id: "violet", name: "Violet", hex: "#8a5ce8", minRarity: 2 },
+  { id: "violet", name: "Orchid", hex: "#CC4FDC", minRarity: 2 },
   { id: "magenta", name: "Magenta", hex: "#e8529e", minRarity: 2 },
   { id: "slate", name: "Slate", hex: "#46586e", minRarity: 3 },
 ];
@@ -112,7 +114,7 @@ export const ACCENT_TINTS: readonly TintEntry[] = [
 export const BELLY_TINTS: readonly TintEntry[] = [
   { id: "cream", name: "Cream", hex: "#f4ead4" },
   { id: "peach", name: "Peach", hex: "#ffb98a" },
-  { id: "mint", name: "Mint", hex: "#d6ffe4" },
+  { id: "mint", name: "Aqua", hex: "#d2f8f4" },
   { id: "rose", name: "Rose", hex: "#ffd6dd" },
   { id: "sky", name: "Sky", hex: "#cfe6ff" },
   { id: "lilac", name: "Lilac", hex: "#e2d6ff" },
@@ -136,7 +138,7 @@ export const EYE_TINTS: readonly TintEntry[] = [
   { id: "copper", name: "Copper", hex: "#d96f32" },
   { id: "ocean", name: "Ocean", hex: "#23d3c2" },
   { id: "white", name: "White", hex: "#f4f4f4", minRarity: 2 },
-  { id: "tide", name: "Tide", hex: "#c8ff9a", minRarity: 3 },
+  { id: "tide", name: "Foam", hex: "#c8d8ff", minRarity: 3 },
 ];
 
 /**
@@ -191,7 +193,7 @@ export type ShadingToneEntry = {
 };
 
 export const SHADING_TONES: readonly ShadingToneEntry[] = [
-  { id: "graphite", name: "Graphite", hex: "#2e3630" },
+  { id: "graphite", name: "Graphite", hex: "#2a3140" },
   { id: "sepia", name: "Sepia", hex: "#5c4326" },
   { id: "slate", name: "Slate", hex: "#46586e" },
   { id: "plum", name: "Plum", hex: "#4a3355" },
@@ -200,9 +202,9 @@ export const SHADING_TONES: readonly ShadingToneEntry[] = [
 
 /** Tsunami-wave cape tints. Rolled only at Legendary. */
 export const CAPE_TINTS: readonly TintEntry[] = [
-  { id: "kelp-wave", name: "Kelp Wave", hex: "#00C805", minRarity: 4 },
-  { id: "lime-foam", name: "Lime Foam", hex: "#c8ff9a", minRarity: 4 },
-  { id: "tide", name: "Tide", hex: "#2f6fe8", minRarity: 4 },
+  { id: "kelp-wave", name: "Arc Wave", hex: "#3E8BFF", minRarity: 4 },
+  { id: "lime-foam", name: "Foam", hex: "#BFE0FF", minRarity: 4 },
+  { id: "tide", name: "Tide", hex: "#2440C8", minRarity: 4 },
   { id: "sunset", name: "Sunset", hex: "#f07422", minRarity: 4 },
   { id: "cream-banner", name: "Cream Banner", hex: "#f4ead4", minRarity: 4 },
   { id: "midnight-tide", name: "Midnight Tide", hex: "#123a5c", minRarity: 4 },

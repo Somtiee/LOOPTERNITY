@@ -1,0 +1,27 @@
+{
+  "network": "arc-testnet",
+  "chainId": 5042002,
+  "contract": "Loopiterns",
+  "version": "2 (voucher-gated mint, native-USDC price)",
+  "address": "0x991Ad2Bb19e57fB427250ec9AEEd312e60d21990",
+  "mintPriceWei": "650000000000000000",
+  "mintPriceNote": "0.65 USDC per mint, native USDC (18 decimals) — Arc's native gas token is USDC per docs.arc.io. Owner can adjust via setMintPrice.",
+  "deployer": "0xED638d2de9E7b6E8D06514A161bb2cEFf28bfCDd",
+  "deployTxHash": "0xa36f388ea801beb90866040314ac2a50b06d013fa9d37cc9fa2e3034d824bc3f",
+  "deployBlock": 62058426,
+  "rpc": "https://rpc.testnet.arc.io",
+  "explorer": "https://testnet.arcscan.app",
+  "status": "DEPLOYED",
+  "statusNote": "Broadcast 2026-09-14 via forge script --broadcast --slow on chain 5042002. Verified on-chain: owner=treasury (0xED638d2de9E7b6E8D06514A161bb2cEFf28bfCDd), mintSigner=0x486eCE21831ffa07661EF745746e2ec47a486222 (same server voucher signer key as the retired Robinhood v2, lives only in gitignored contracts/.env as VOUCHER_SIGNER_PRIVATE_KEY), mintPrice=0.65 native USDC (6.5e17), totalSupply=0, not paused, ~10.2KB runtime code. baseURI deployed EMPTY. Minting is voucher-only: mint() removed, mintWithVoucher(rarity, deadline, nonce, signature) requires an EIP-712 server signature, single-use nonce, 10-minute deadline. MAX_PER_WALLET=10, MAX_SUPPLY=10_000, rarity caps 5000/2500/1500/800/200 with drop-down-never-up. Predecessor: Robinhood Chain (4663) v2 0x0914DcfdE10e5Df2aA1D8C850213712F64852637, RETIRED 2026-09-14 (swept + paused) — see deployments/robinhood-4663.json.",
+  "owner": "0xED638d2de9E7b6E8D06514A161bb2cEFf28bfCDd (treasury wallet — also the deployer)",
+  "postDeployChecklist": [
+    "DONE: forge build + forge test (30/30 incl. cap-10 at 0.65e18, voucher forge/replay/expiry tests).",
+    "DONE: broadcast on chain 5042002, tx 0xa36f388e...824bc3f, status success, block 62058426.",
+    "DONE: on-chain verified via cast: owner=treasury, mintSigner=server voucher signer, mintPrice=6.5e17 (0.65 USDC), paused=false, totalSupply=0.",
+    "DONE: Multicall3 confirmed deployed at the canonical 0xcA11bde05977b3631167028862bE2a173976CA11 on 5042002 (eth_getCode) — batched inventory reads work.",
+    "TODO: set NEXT_PUBLIC_LOOPITERNS_ADDRESS (app, browser-visible) to the address above after the client mint path is pointed at Arc (prompt G).",
+    "TODO: set baseURI via setBaseURI (point at the still/metadata routes) so marketplaces resolve tokenURI.",
+    "TODO: verify source on https://testnet.arcscan.app — try the explorer's web UI (Contract > Verify & Publish, solc 0.8.29, optimizer on, 200 runs) in a browser; forge verify-contract support for Arc is unconfirmed.",
+    "Treasury sweep: withdraw(to) onlyOwner sweeps the contract's native (USDC) balance — same shape as the retired Robinhood v2."
+  ]
+}

@@ -48,6 +48,7 @@ remappings = [
 lint_on_build = false
 
 [rpc_endpoints]
+arctestnet = "https://rpc.testnet.arc.io"
 robinhood = "https://rpc.mainnet.chain.robinhood.com"
 base_sepolia = "${BASE_SEPOLIA_RPC_URL}"
 base = "${BASE_MAINNET_RPC_URL}"

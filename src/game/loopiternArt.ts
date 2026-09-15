@@ -11,8 +11,9 @@ import {
   type LoopiternDna,
 } from "./loopiternTraits";
 
-export const LOOPITERN_GREEN = "#00C805";
-export const LOOPITERN_INK = "#05140a";
+/** Arc-blue brand accent — the collection's dominant body family. */
+export const LOOPITERN_ACCENT = "#3E8BFF";
+export const LOOPITERN_INK = "#050d14";
 export const LOOPITERN_CREAM = "#f4ead4";
 
 export function loopiternPortraitSrc(rarity: LoopiternRarityId): string {
@@ -23,11 +24,11 @@ export const LOOPITERN_BODY: Record<
   LoopiternRarityId,
   { fill: string; belly: string; trim: string }
 > = {
-  0: { fill: "#2f8a3c", belly: "#6db56a", trim: "#c8e8b0" },
-  1: { fill: "#00C805", belly: "#7CFF7C", trim: "#f4ead4" },
-  2: { fill: "#1edc72", belly: "#a8fff0", trim: "#e8fff8" },
-  3: { fill: "#00b804", belly: "#f4ead4", trim: "#c8ff9a" },
-  4: { fill: "#00C805", belly: "#c8ff9a", trim: "#fff6c8" },
+  0: { fill: "#2E63D6", belly: "#6FA3EA", trim: "#c8defa" },
+  1: { fill: "#3E8BFF", belly: "#7CC4FF", trim: "#f4ead4" },
+  2: { fill: "#62A8FF", belly: "#a8e2ff", trim: "#e8f4ff" },
+  3: { fill: "#3484F5", belly: "#f4ead4", trim: "#c8e0ff" },
+  4: { fill: "#3E8BFF", belly: "#c8e4ff", trim: "#f2f8ff" },
 };
 
 /** One palette source for UI previews and the in-game climb rig (J4). */
@@ -137,6 +138,6 @@ export function loopiternRarityPalette(
     trim: body.trim,
     eye: LOOPITERN_CREAM,
     shading: null,
-    cape: rarity === 4 ? LOOPITERN_GREEN : null,
+    cape: rarity === 4 ? LOOPITERN_ACCENT : null,
   };
 }

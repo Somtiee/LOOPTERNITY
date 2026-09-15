@@ -1,6 +1,6 @@
 "use client";
 
-import { formatSurvivalTime } from "@/game/score";
+import { formatScore } from "@/game/score";
 import { DIFFICULTIES } from "@/game/constants";
 import { getCharacter } from "@/game/characters";
 import { usePlayerRegistry } from "@/web3/hooks/usePlayerRegistry";
@@ -64,7 +64,7 @@ export function PlayerHub({
         ) : null}
 
         <p className="mt-4 font-[family-name:var(--font-display)] text-[10px] tracking-[0.18em] text-white/45">
-          NORMAL BESTS
+          NORMAL BEST SCORES
         </p>
         <div className="mt-2 space-y-2">
           {DIFFS.map((d) => {
@@ -78,7 +78,7 @@ export function PlayerHub({
                   {DIFFICULTIES[d].label.toUpperCase()}
                 </span>
                 <span className="tabular-nums text-sm text-white">
-                  {t > 0 ? formatSurvivalTime(t) : "—"}
+                  {t > 0 ? formatScore(t) : "—"}
                 </span>
               </div>
             );

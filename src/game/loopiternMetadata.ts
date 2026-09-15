@@ -65,7 +65,7 @@ export function buildLoopiternMetadata(
     name: `LOOPITERN #${tokenId} (${rarityName})`,
     description:
       `LOOPITERN #${tokenId}, a ${rarityName} climber from the LOOPTERNITY ` +
-      "collection on Robinhood Chain. Painted base with DNA-driven recolor " +
+      "collection on Arc. Painted base with DNA-driven recolor " +
       "and sketchbook shading — the same palette drives the in-game climb rig.",
     image: `${origin}${stillApiPath(tokenId, rarity)}`,
     external_url: `${origin}/`,

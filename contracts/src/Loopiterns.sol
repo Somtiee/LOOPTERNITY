@@ -9,16 +9,24 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 /**
  * @title Loopiterns
- * @notice ERC-721 collection for LOOPTERNITY on Robinhood Chain (4663).
+ * @notice ERC-721 collection for LOOPTERNITY on Circle Arc (testnet 5042002).
  *
- * v2: public mint() is gone. Client survival time is spoofable, so the
- * mint is now gated by an off-chain server voucher: `mintWithVoucher`
+ * Arc uses USDC as the native gas token (18 decimals, per docs.arc.io), so
+ * `mintPrice` and `msg.value` are native USDC: 0.65 USDC = 0.65e18, and the
+ * owner `withdraw` sweeps the contract's native (USDC) balance.
+ *
+ * v2: public mint() is gone. A client-sent score or timer is spoofable, so
+ * the mint is now gated by an off-chain server voucher: `mintWithVoucher`
  * recovers the signer from a signature bound to (minter, rarity, deadline,
  * nonce, chainid, this contract). The server only signs when the run's
- * survival time meets the rarity gate (45/60/90/120/180s). On-chain this
- * contract still enforces: server signature, exact `mintPrice`, max 5 per
- * wallet, global 10_000 cap, and remaining supply per rarity (with
- * drop-down to a lower rarity than requested, never an upgrade).
+ * REPLAYED score (deterministic ClimbSim replay of the recorded input log)
+ * meets the rarity score gate (SCORE 15_000/25_000/35_000/45_000/60_000,
+ * raised by hand in 2026-09 above the calibrated 9_500..47_500 band
+ * because runs had gotten too easy).
+ * On-chain this contract still enforces: server signature, exact
+ * `mintPrice`, max 10 per wallet, global 10_000 cap, and remaining supply
+ * per rarity (with drop-down to a lower rarity than requested, never an
+ * upgrade).
  *
  * Rarity ids: 0 Common, 1 Uncommon, 2 Rare, 3 Epic, 4 Legendary.
  */
@@ -26,7 +34,7 @@ contract Loopiterns is ERC721Enumerable, Ownable, Pausable {
     using Strings for uint256;
 
     uint256 public constant MAX_SUPPLY = 10_000;
-    uint256 public constant MAX_PER_WALLET = 5;
+    uint256 public constant MAX_PER_WALLET = 10;
     uint8 public constant RARITY_COUNT = 5;
 
     /// @notice Caps: Common 5000, Uncommon 2500, Rare 1500, Epic 800, Legendary 200.
@@ -45,7 +53,8 @@ contract Loopiterns is ERC721Enumerable, Ownable, Pausable {
 
     mapping(uint256 tokenId => uint8) public tokenRarity;
     mapping(uint256 tokenId => uint64) public mintedAt;
-    /// @dev Vouchered server-side survival seconds. Not client-supplied.
+    /// @dev Vestigial v2 mapping (always 0 via mintWithVoucher). The rarity
+    /// authority is the server's replayed score, which never reaches chain.
     mapping(uint256 tokenId => uint256) public claimedSeconds;
 
     event Minted(address indexed to, uint256 indexed id, uint8 rarity, uint8 requested);
@@ -211,7 +220,8 @@ contract Loopiterns is ERC721Enumerable, Ownable, Pausable {
         _unpause();
     }
 
-    /// @notice Sweep the full ETH balance to `to` (treasury). Reverts on failed transfer.
+    /// @notice Sweep the full native (USDC on Arc) balance to `to`
+    ///         (treasury). Reverts on failed transfer.
     function withdraw(address payable to) external onlyOwner {
         uint256 amount = address(this).balance;
         (bool ok,) = to.call{value: amount}("");

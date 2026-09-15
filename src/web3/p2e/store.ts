@@ -5,8 +5,13 @@ import type { AddressKey, NormalBests, PlayerDatabase, PlayerProfile } from "./t
 
 const KEY = "loopternity.p2e.v1";
 const GUEST_CHARACTER_KEY = "loopternity.character.v1";
-/** Device-only Normal PBs. Never merged into a wallet profile. */
-const GUEST_BESTS_KEY = "loopternity.normalBest.guest.v1";
+/**
+ * Device-only Normal PBs — best SCORE per difficulty. Never merged into a
+ * wallet profile. v2: the values changed from survival seconds to run
+ * scores (src/game/score.ts), so the key was bumped — old second-based
+ * guest bests are dropped rather than misread as scores.
+ */
+const GUEST_BESTS_KEY = "loopternity.normalBest.guest.v2";
 
 function emptyDb(): PlayerDatabase {
   return { players: {} };
@@ -93,17 +98,18 @@ function writeGuestNormalBests(bests: NormalBests) {
 }
 
 /**
- * Device-only Normal PBs. Connecting a wallet never copies these onto that
- * address, and this store is never written from `recordNormalBest`.
+ * Device-only Normal PBs (best SCORE per difficulty). Connecting a wallet
+ * never copies these onto that address, and this store is never written
+ * from `recordNormalBest`.
  */
 export function recordGuestNormalBest(
   difficulty: DifficultyId,
-  survivalSeconds: number,
+  score: number,
 ): { isNewBest: boolean; previous: number; current: number } {
   const bests = getGuestNormalBests();
   const previous = bests[difficulty] ?? 0;
-  const isNewBest = survivalSeconds > previous + 0.05;
-  if (isNewBest) bests[difficulty] = survivalSeconds;
+  const isNewBest = score > previous;
+  if (isNewBest) bests[difficulty] = score;
   writeGuestNormalBests(bests);
   return { isNewBest, previous, current: bests[difficulty] };
 }
@@ -146,13 +152,18 @@ export function resolveCharacterId(address?: AddressKey): CharacterId {
 }
 
 /**
- * Normal-mode personal best for one wallet. Guest times stay on
- * `GUEST_BESTS_KEY` and are never copied here.
+ * Normal-mode personal best for one wallet — best SCORE per difficulty.
+ * Guest bests stay on `GUEST_BESTS_KEY` and are never copied here.
+ *
+ * Legacy note: profiles written before the score switch stored survival
+ * SECONDS here. Any real score (thousands) beats any plausible seconds PB,
+ * so the max-merge self-corrects on a player's first new run; until then a
+ * stale wallet/cloud value may briefly display as a tiny score.
  */
 export function recordNormalBest(
   address: AddressKey,
   difficulty: DifficultyId,
-  survivalSeconds: number,
+  score: number,
 ): { isNewBest: boolean; previous: number; current: number } {
   const db = readDb();
   const key = address.toLowerCase();
@@ -174,8 +185,8 @@ export function recordNormalBest(
         characterId: getGuestCharacterId(),
       };
   const previous = profile.normalBest[difficulty] ?? 0;
-  const isNewBest = survivalSeconds > previous + 0.05;
-  if (isNewBest) profile.normalBest[difficulty] = survivalSeconds;
+  const isNewBest = score > previous;
+  if (isNewBest) profile.normalBest[difficulty] = score;
   db.players[key] = profile;
   writeDb(db);
   pushBestsToCloud(address, profile.normalBest);

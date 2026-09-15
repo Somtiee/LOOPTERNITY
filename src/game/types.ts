@@ -127,6 +127,8 @@ export type HudSnapshot = {
   shields: number;
   maxShields: number;
   timeSurvived: number;
+  /** Live run score (see src/game/score.ts) — the rarity gate metric. */
+  score: number;
   height: number;
   themeName: string;
   boostReady: boolean;

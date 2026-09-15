@@ -6,7 +6,7 @@ import type { EIP1193Provider } from "viem";
 import { useAccount, useConnect, WagmiProvider } from "wagmi";
 import { RainbowKitProvider, darkTheme } from "@rainbow-me/rainbowkit";
 import "@rainbow-me/rainbowkit/styles.css";
-import { APP_NAME, ROBINHOOD_CHAIN, walletConnectProjectId } from "./config";
+import { APP_NAME, ARC_CHAIN, walletConnectProjectId } from "./config";
 import { getRabbyProvider } from "./detectedRabbyWallet";
 import { wagmiConfig } from "./wagmiConfig";
 
@@ -104,7 +104,7 @@ export function Web3Providers({ children }: { children: ReactNode }) {
         <RainbowKitProvider
           theme={loopternityTheme}
           modalSize="wide"
-          initialChain={ROBINHOOD_CHAIN}
+          initialChain={ARC_CHAIN}
           appInfo={{ appName: APP_NAME }}
         >
           <RestoreInjectedWallet />

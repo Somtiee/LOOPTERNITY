@@ -25,9 +25,9 @@
 import { createPublicClient, fallback, http } from "viem";
 import { getLoopiternsAddress } from "@/web3/loopiterns/address";
 import {
-  ROBINHOOD_CHAIN,
-  ROBINHOOD_RPC_FALLBACK_URL,
-  ROBINHOOD_RPC_URL,
+  ARC_CHAIN,
+  ARC_RPC_FALLBACK_URL,
+  ARC_RPC_URL,
 } from "@/web3/config";
 import { isLoopiternRarityId } from "@/game/mintTiers";
 import { buildLoopiternMetadata, LOOPITERNS_MAX_SUPPLY } from "@/game/loopiternMetadata";
@@ -50,17 +50,17 @@ function stripJsonExt(raw: string): string {
 }
 
 /**
- * Read transport: public Robinhood first, the optional
+ * Read transport: public Arc testnet first, the optional
  * NEXT_PUBLIC_RPC_URL (Alchemy) only when the public RPC fails — the same
  * policy as the client wagmi transports (src/web3/config.ts). Built once
  * at module scope; the per-request client below just references it.
  */
-const transport = ROBINHOOD_RPC_FALLBACK_URL
+const transport = ARC_RPC_FALLBACK_URL
   ? fallback([
-      http(ROBINHOOD_RPC_URL, { retryCount: 1 }),
-      http(ROBINHOOD_RPC_FALLBACK_URL, { retryCount: 1 }),
+      http(ARC_RPC_URL, { retryCount: 1 }),
+      http(ARC_RPC_FALLBACK_URL, { retryCount: 1 }),
     ])
-  : http(ROBINHOOD_RPC_URL, { retryCount: 1 });
+  : http(ARC_RPC_URL, { retryCount: 1 });
 
 export async function GET(
   req: Request,
@@ -81,7 +81,7 @@ export async function GET(
   }
 
   const client = createPublicClient({
-    chain: ROBINHOOD_CHAIN,
+    chain: ARC_CHAIN,
     transport,
   });
 
