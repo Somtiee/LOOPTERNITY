@@ -73,18 +73,11 @@ export function GameCanvas({
     input.attach();
     inputRef.current = input;
 
-    // Sim playfield dims are locked for the whole run (the server replays
-    // with these exact values), so derive them from the initial viewport —
-    // integers, clamped to the ranges the voucher route validates.
-    const parent0 = canvas.parentElement;
-    const rect0 = parent0?.getBoundingClientRect();
-    const targetAspect = WORLD.width / WORLD.viewHeight;
-    let fitW = rect0?.width ?? WORLD.width;
-    let fitH = rect0?.height ?? WORLD.viewHeight;
-    if (fitW / fitH > targetAspect) fitW = fitH * targetAspect;
-    const simW = Math.round(Math.min(1200, Math.max(280, fitW)));
-    const simH = Math.round(Math.min(2200, Math.max(420, fitH)));
-
+    // Fair play: EVERY player runs the identical fixed playfield (WORLD
+    // dims — the world scripts/calibrate-score.ts tuned the rarity gates
+    // against). Window size and browser zoom only scale the rendered
+    // canvas; they can never change how much world a player sees, and the
+    // dims a run records are the same for everyone.
     const game = new Game(canvas, input, {
       themeId,
       difficultyId,
@@ -105,8 +98,8 @@ export function GameCanvas({
       mode,
       equippedRarity: effectiveRarity,
       equippedTokenId: effectiveTokenId,
-      width: simW,
-      height: simH,
+      width: WORLD.width,
+      height: WORLD.viewHeight,
       seed: initialSessionSeedRef.current ?? undefined,
       onRunRecord:
         initialSessionSeedRef.current != null && onRunRecordRef.current
@@ -122,15 +115,22 @@ export function GameCanvas({
       const dprRaw = window.devicePixelRatio || 1;
       const dpr =
         rect.width < 480 ? Math.min(dprRaw, 1.25) : Math.min(dprRaw, 2);
+      // The parent is the fixed-aspect playfield frame (square for the
+      // 720×720 world); the canvas fills it. The two-way aspect lock keeps
+      // the world square even if a future layout makes the frame taller or
+      // wider — a browser zoom or window resize only scales the render,
+      // never the world.
       const targetAspect = WORLD.width / WORLD.viewHeight;
       let cssW = rect.width;
       let cssH = rect.height;
       if (cssW / cssH > targetAspect) {
         cssW = cssH * targetAspect;
+      } else {
+        cssH = cssW / targetAspect;
       }
-      // The sim keeps its construction dims; the canvas backing store is
-      // sized to them and CSS scales it (aspect is locked 1:1) — a mid-run
-      // resize letterboxes instead of changing the replayed world.
+      // The sim keeps its fixed WORLD dims; the canvas backing store is
+      // sized to them and CSS scales it — a mid-run resize letterboxes
+      // instead of changing the replayed world.
       game.setSize(cssW, cssH, dpr);
       canvas.style.width = `${cssW}px`;
       canvas.style.height = `${cssH}px`;
@@ -226,7 +226,7 @@ export function GameCanvas({
   return (
     <canvas
       ref={canvasRef}
-      className="mx-auto h-full max-h-full touch-none select-none bg-[#12060a]"
+      className="h-full w-full touch-none select-none bg-[#12060a]"
       aria-label="LOOPTERNITY game canvas"
     />
   );

@@ -125,6 +125,14 @@ export class Game {
   /** Session seed for replay attestation (P2M); undefined = random per run. */
   private sessionSeed?: number;
   private onRunRecord?: (record: RunRecord) => void;
+  /**
+   * Sim playfield dims locked at construction (from the initial viewport).
+   * Every restart reuses them — a newSim() without them would fall back to
+   * WORLD dims while the canvas backing store keeps the construction size,
+   * clipping (or corner-shrinking) the world into a disjointed mess.
+   */
+  private runWidth?: number;
+  private runHeight?: number;
   private sim!: ClimbSim;
   private recorder: InputRecorder | null = null;
   /** Modifiers as passed at construction (Normal honors equipped traits). */
@@ -166,6 +174,8 @@ export class Game {
     this.baseModifiers = options.modifiers ?? VANILLA_MODIFIERS;
     this.sessionSeed = options.seed;
     this.onRunRecord = options.onRunRecord;
+    this.runWidth = options.width;
+    this.runHeight = options.height;
     this.equippedRarity =
       this.runMode === "normal" ? (options.equippedRarity ?? null) : null;
     this.equippedTokenId =
@@ -262,8 +272,10 @@ export class Game {
         : (Math.random() * 0x7fffffff) | 0;
     this.sim = new ClimbSim({
       seed,
-      width: width ?? WORLD.width,
-      height: height ?? WORLD.viewHeight,
+      // Restart (newSim with no args) keeps the locked run dims — see
+      // runWidth/runHeight. Only construction may introduce new dims.
+      width: width ?? this.runWidth ?? WORLD.width,
+      height: height ?? this.runHeight ?? WORLD.viewHeight,
       themeId: this.themeId,
       difficultyId: this.difficultyId,
       modifiers:
