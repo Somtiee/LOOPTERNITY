@@ -10,14 +10,15 @@
  * Paths exercised — every cheat route must end in 403, only the honest one
  * in a signature:
  *
- *   A. Old console bypass: fresh session + timeSurvived 9999 + garbage log
- *      → 403 (wall-clock gate fires first, exactly as before).
- *   B. Autopilot run ≥ 31s on a server-issued session (new sessions until
- *      one survives — the seed is the server's, the inputs are "played").
+ *   A. Old console bypass: fresh session + score 999999 + garbage log
+ *      → 403 (wall-clock floor fires first, exactly as before).
+ *   B. Autopilot run reaching the Common score gate on a server-issued
+ *      session (new sessions until one does — the seed is the server's,
+ *      the inputs are "played").
  *   C. Garbage inputLog after the wall clock has passed → 403 "no valid
  *      run record".
- *   D. Doctored-but-valid logs (single axis flip / all axis zeroed) with the
- *      honest claimed time → 403 (replay diverges or dies early).
+ *   D. Doctored-but-valid claims/logs (padded score / all inputs zeroed /
+ *      overclaimed rarity) → 403 (replay diverges or scores under the gate).
  *   E. The honest log → 200, and the signature recovers to the deploy's
  *      MINT_SIGNER address.
  */
@@ -26,12 +27,15 @@ import { readFileSync } from "node:fs";
 import { resolve as resolvePath } from "node:path";
 import { hashTypedData, recoverAddress } from "viem";
 import { ClimbSim } from "../src/game/sim/ClimbSim";
+import { RARITIES } from "../src/game/mintTiers";
+import { formatScore } from "../src/game/score";
 import {
   createInputRecorder,
   type RunInputLog,
 } from "../src/game/sim/inputLog";
 import { SIM_HZ } from "../src/game/sim/simMath";
 import { VANILLA_MODIFIERS } from "../src/game/traits";
+import { ARC_CHAIN_ID } from "../src/web3/config";
 import type { ThemeId } from "../src/game/types";
 import { autopilotInputs } from "./autopilot";
 
@@ -49,7 +53,6 @@ function envLocal(name: string): string | undefined {
     return undefined;
   }
 }
-const ROBINHOOD_CHAIN_ID = 4663;
 const VOUCHER_DOMAIN = { name: "Loopiterns", version: "2" } as const;
 const VOUCHER_TYPES = {
   LoopiternsVoucher: [
@@ -75,13 +78,23 @@ async function postJson(
   path: string,
   body: unknown,
 ): Promise<{ status: number; json: Record<string, unknown> }> {
-  const res = await fetch(`${BASE}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  return { status: res.status, json };
+  for (;;) {
+    const res = await fetch(`${BASE}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    // The route rate-limits per IP (6/min). This script deliberately bursts
+    // ~10 posts; wait out the window and retry — a 429 is not a verdict.
+    if (res.status === 429) {
+      const retryAfter = Number(res.headers.get("Retry-After") ?? "10");
+      console.log(`  (rate limited — waiting ${retryAfter}s)`);
+      await new Promise((r) => setTimeout(r, retryAfter * 1000 + 500));
+      continue;
+    }
+    const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    return { status: res.status, json };
+  }
 }
 
 type Session = { sessionId: string; seed: number; themeId: ThemeId; issuedAt: number };
@@ -110,6 +123,7 @@ async function requestSession(): Promise<Session> {
 function playAutopilotRun(session: Session): {
   log: RunInputLog;
   timeSurvived: number;
+  score: number;
 } {
   const sim = new ClimbSim({
     seed: session.seed,
@@ -131,6 +145,7 @@ function playAutopilotRun(session: Session): {
   return {
     log: rec.finish(sim.tick, sim.width, sim.height),
     timeSurvived: sim.time,
+    score: sim.score(),
   };
 }
 
@@ -138,18 +153,19 @@ void (async () => {
 // --- A. old console bypass (fresh session, absurd claim, garbage log) ------
 
 console.log(`E2E against ${BASE}\n`);
-console.log("A. console bypass: fresh session + timeSurvived 9999 + garbage log");
+console.log("A. console bypass: fresh session + score 999999 + garbage log");
 {
   const session = await requestSession();
   const { status, json } = await postJson("/api/loopitern/voucher", {
     address: MINTER,
     rarity: 4, // Legendary
+    score: 999_999,
     timeSurvived: 9999,
     sessionId: session.sessionId,
     inputLog: { v: 1, ticks: 10, width: 720, height: 720, axis: [], boost: [], freeze: [], tsunami: [] },
   });
   assert(status === 403, `expected 403, got ${status}: ${JSON.stringify(json)}`);
-  console.log(`  → ${status} ${String(json.error)} ✓ (wall-clock gate fires first)`);
+  console.log(`  → ${status} ${String(json.error)} ✓ (wall-clock floor fires first)`);
 }
 
 // --- A2. tampered/unsigned session tokens -----------------------------------
@@ -168,6 +184,7 @@ console.log("\nA2. tampered session tokens:");
   const r1 = await postJson("/api/loopitern/voucher", {
     address: MINTER,
     rarity: 0,
+    score: 20_000,
     timeSurvived: 60,
     sessionId: tampered,
     inputLog: { v: 1, ticks: 10, width: 720, height: 720, axis: [], boost: [], freeze: [], tsunami: [] },
@@ -188,6 +205,7 @@ console.log("\nA2. tampered session tokens:");
   const r2 = await postJson("/api/loopitern/voucher", {
     address: MINTER,
     rarity: 0,
+    score: 20_000,
     timeSurvived: 60,
     sessionId: `${fakePayload}.AAAA forgery`,
     inputLog: { v: 1, ticks: 10, width: 720, height: 720, axis: [], boost: [], freeze: [], tsunami: [] },
@@ -204,6 +222,7 @@ console.log("\nA2. tampered session tokens:");
   const r3 = await postJson("/api/loopitern/voucher", {
     address: MINTER,
     rarity: 0,
+    score: 20_000,
     timeSurvived: 60,
     sessionId: "2b7b6a30-1111-4d2f-9c66-000000000000",
     inputLog: { v: 1, ticks: 10, width: 720, height: 720, axis: [], boost: [], freeze: [], tsunami: [] },
@@ -212,11 +231,14 @@ console.log("\nA2. tampered session tokens:");
   console.log(`  garbage sessionId   → ${r3.status} ${String(r3.json.error)} ✓`);
 }
 
-// --- B. honest autopilot run ≥ 31s on a server-issued session --------------
+// --- B. honest autopilot run reaching the Common score gate -----------------
 
-console.log("\nB. playing an attested run (new sessions until one survives ≥ 31s):");
+console.log(
+  `\nB. playing an attested run (new sessions until one scores ≥ ${formatScore(RARITIES[0].minScore)}):`,
+);
 let session: Session;
 let log: RunInputLog;
+let score: number;
 let timeSurvived: number;
 {
   let attempt = 0;
@@ -225,28 +247,30 @@ let timeSurvived: number;
     session = await requestSession();
     const run = playAutopilotRun(session);
     console.log(
-      `  attempt ${attempt}: seed ${session.seed} (${session.themeId}) → ${run.timeSurvived.toFixed(3)}s`,
+      `  attempt ${attempt}: seed ${session.seed} (${session.themeId}) → ${run.timeSurvived.toFixed(3)}s, score ${formatScore(run.score)}`,
     );
-    if (run.timeSurvived >= 31) {
+    if (run.score >= RARITIES[0].minScore) {
       log = run.log;
+      score = run.score;
       timeSurvived = run.timeSurvived;
       break;
     }
-    if (attempt >= 25) fail("no session produced a ≥31s autopilot run in 25 tries");
+    if (attempt >= 25) fail("no session produced a gate-clearing autopilot run in 25 tries");
   }
   console.log(
-    `  session ${session.sessionId} seed ${session.seed}: honest ${timeSurvived.toFixed(3)}s run recorded (${log.ticks} ticks)`,
+    `  session ${session.sessionId} seed ${session.seed}: honest run — score ${formatScore(score)} in ${timeSurvived.toFixed(3)}s (${log.ticks} ticks)`,
   );
 }
 
-// Wait out the wall-clock gate for the rarest claim below (Rare = 90s since
-// issue; the honest Common claim only needs 30s, but D1/D3 mint Uncommon and
-// Rare, and gate 2 checks the MINTED rarity).
+// Wait out the wall-clock floor for the rarest claim below. The floor is
+// ceil(minSeconds × 0.4) of the MINTED rarity: Rare (90s) → 36s since issue.
+// The honest Common claim only needs 12s, but D1/D3 mint Uncommon (24s) and
+// Rare (36s), and gate 2 checks the MINTED rarity.
 {
   const elapsed = (Date.now() - session.issuedAt) / 1000;
-  const waitS = Math.max(0, 90.5 - elapsed);
+  const waitS = Math.max(0, 36.5 - elapsed);
   if (waitS > 0) {
-    console.log(`  waiting ${waitS.toFixed(1)}s for the wall-clock gate…`);
+    console.log(`  waiting ${waitS.toFixed(1)}s for the wall-clock floor…`);
     await new Promise((r) => setTimeout(r, waitS * 1000));
   }
 }
@@ -258,6 +282,7 @@ console.log("\nC. garbage inputLog (clock already passed):");
   const { status, json } = await postJson("/api/loopitern/voucher", {
     address: MINTER,
     rarity: 0,
+    score,
     timeSurvived,
     sessionId: session.sessionId,
     inputLog: { garbage: true },
@@ -274,13 +299,15 @@ console.log("\nC. garbage inputLog (clock already passed):");
 
 console.log("\nD. doctored claims and logs:");
 {
-  // D1: claim a longer run than the log shows — the classic "I survived 90s".
-  // The replay is authoritative: either the claim doesn't even unlock the
-  // rarity, or |replay − claim| > 0.75s → no voucher either way.
+  // D1: claim a higher score than the log produces — the classic padded
+  // claim. The replay is authoritative: either |replay − claim| exceeds the
+  // match tolerance, or the replayed score never reaches the gate → 403
+  // either way.
   const r1 = await postJson("/api/loopitern/voucher", {
     address: MINTER,
     rarity: 1,
-    timeSurvived: Math.max(timeSurvived + 5, 60.2),
+    score: Math.max(score + 5_000, 25_100), // padded past the Uncommon gate
+    timeSurvived,
     sessionId: session.sessionId,
     inputLog: log,
   });
@@ -291,15 +318,16 @@ console.log("\nD. doctored claims and logs:");
         r1.json.error.includes("not unlocked")),
     `D1 unexpected error: ${JSON.stringify(r1.json)}`,
   );
-  console.log(`  claim +5s over the log → ${r1.status} ${String(r1.json.error)} ✓`);
+  console.log(`  padded score +5_000  → ${r1.status} ${String(r1.json.error)} ✓`);
 
-  // D2: strip all steering (valid shape, zero effort) + honest claimed time —
-  // the replayed run dies early, so either the claim mismatches or the run
+  // D2: strip all steering (valid shape, zero effort) + honest claim — the
+  // replayed run scores far less (and usually dies early), so the replay
   // never reaches the gate.
   const passive: RunInputLog = { ...log, axis: [], boost: [] };
   const r2 = await postJson("/api/loopitern/voucher", {
     address: MINTER,
     rarity: 0,
+    score,
     timeSurvived,
     sessionId: session.sessionId,
     inputLog: passive,
@@ -307,11 +335,12 @@ console.log("\nD. doctored claims and logs:");
   assert(r2.status === 403, `D2 expected 403, got ${r2.status}: ${JSON.stringify(r2.json)}`);
   console.log(`  strip all inputs     → ${r2.status} ${String(r2.json.error)} ✓`);
 
-  // D3: overclaim rarity — a 79s run padded past the Rare (90s) gate.
+  // D3: overclaim rarity — a sub-gate run padded past the Rare score gate.
   const r3 = await postJson("/api/loopitern/voucher", {
     address: MINTER,
-    rarity: 2, // Rare (90s) claimed on a sub-90s run
-    timeSurvived: 90.2, // padded past the gate
+    rarity: 2, // Rare (35_000) claimed on a sub-gate run
+    score: 35_100, // padded past the gate
+    timeSurvived,
     sessionId: session.sessionId,
     inputLog: log,
   });
@@ -319,7 +348,8 @@ console.log("\nD. doctored claims and logs:");
   assert(
     typeof r3.json.error === "string" &&
       (r3.json.error.includes("mismatch") ||
-        r3.json.error.includes("not unlocked")),
+        r3.json.error.includes("not unlocked") ||
+        r3.json.error.includes("Playing is the only way")),
     `D3 unexpected error: ${JSON.stringify(r3.json)}`,
   );
   console.log(`  overclaimed rarity   → ${r3.status} ${String(r3.json.error)} ✓`);
@@ -332,6 +362,7 @@ console.log("\nE. honest log → voucher:");
   const { status, json } = await postJson("/api/loopitern/voucher", {
     address: MINTER,
     rarity: 0,
+    score,
     timeSurvived,
     sessionId: session.sessionId,
     inputLog: log,
@@ -350,7 +381,7 @@ console.log("\nE. honest log → voucher:");
     hash: hashTypedData({
       domain: {
         ...VOUCHER_DOMAIN,
-        chainId: ROBINHOOD_CHAIN_ID,
+        chainId: ARC_CHAIN_ID,
         verifyingContract: contract,
       },
       types: VOUCHER_TYPES,

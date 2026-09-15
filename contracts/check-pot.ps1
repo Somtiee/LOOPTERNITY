@@ -1,9 +1,9 @@
-# LOOPTERNITY mint-pot checker (Robinhood Chain 4663).
+# LOOPTERNITY mint-pot checker (Circle Arc testnet 5042002).
 # Usage:  powershell -ExecutionPolicy Bypass -File .\check-pot.ps1
 #     or:  .\check-pot.cmd   (from cmd.exe)
 
-$contract = "0x7016CfF42264C8D499a32bBe2b5A039bfd0Ed19f"
-$rpc      = "https://rpc.mainnet.chain.robinhood.com"
+$contract = "0x991Ad2Bb19e57fB427250ec9AEEd312e60d21990"
+$rpc      = "https://rpc.testnet.arc.io"
 $cast     = "$env:USERPROFILE\.foundry\bin\cast.exe"
 
 if (-not (Test-Path $cast)) { Write-Error "cast.exe not found at $cast - install Foundry."; exit 1 }
@@ -13,5 +13,5 @@ $supply = & $cast call $contract "totalSupply()(uint256)" --rpc-url $rpc
 if ($supply -match '\[(\d+)\]') { $supply = $Matches[1] } else { $supply = [Convert]::ToUInt64($supply, 16) }
 
 Write-Host "LOOPITERNS contract : $contract"
-Write-Host "Mint pot           : $pot ETH"
+Write-Host "Mint pot           : $pot native USDC"
 Write-Host "Total minted       : $supply / 10000"
