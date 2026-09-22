@@ -17,5 +17,6 @@
     "blockscout": true,
     "basescan": "skipped_no_api_key"
   },
-  "note": "Testnet only. Not Base mainnet."
+  "note": "Testnet only. Not Base mainnet.",
+  "retiredNote": "RETIRED: the Inco/Base LoopternityVault era is dead — P2E is Coming Soon (no leaderboards, no payouts), there is no Inco integration, and Base is not a live chain for this project. History only; the app does not read this contract."
 }

@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { useReadContract } from "wagmi";
-import { ARC_CHAIN_ID } from "@/web3/config";
+import { ACTIVE_CHAIN_ID } from "@/web3/config";
 import { loopiternsAbi } from "./abi";
 import { getLoopiternsAddress, getMintPriceFallbackWei } from "./address";
 
@@ -54,7 +54,7 @@ export function useLoopiternsSupply(): LoopiternsSupply {
     address: contract,
     abi: loopiternsAbi,
     functionName: "totalSupply",
-    chainId: ARC_CHAIN_ID,
+    chainId: ACTIVE_CHAIN_ID,
     query: { enabled },
   });
 
@@ -62,7 +62,7 @@ export function useLoopiternsSupply(): LoopiternsSupply {
     address: contract,
     abi: loopiternsAbi,
     functionName: "remainingAll",
-    chainId: ARC_CHAIN_ID,
+    chainId: ACTIVE_CHAIN_ID,
     query: { enabled },
   });
 
@@ -70,7 +70,7 @@ export function useLoopiternsSupply(): LoopiternsSupply {
     address: contract,
     abi: loopiternsAbi,
     functionName: "paused",
-    chainId: ARC_CHAIN_ID,
+    chainId: ACTIVE_CHAIN_ID,
     query: { enabled },
   });
 
@@ -78,7 +78,7 @@ export function useLoopiternsSupply(): LoopiternsSupply {
     address: contract,
     abi: loopiternsAbi,
     functionName: "mintPrice",
-    chainId: ARC_CHAIN_ID,
+    chainId: ACTIVE_CHAIN_ID,
     query: { enabled },
   });
 

@@ -36,16 +36,28 @@
  *   - rarity not unlocked by the REPLAYED score → 403
  *   - rarity out of range / bad address / bad log → 400 or 403
  *
+ * Live chain: Robinhood Chain mainnet (4663). The voucher is signed with
+ * chainId = ACTIVE_CHAIN_ID because Loopiterns.sol rebuilds the domain from
+ * the `chainid()` opcode at verify time — signing any other chain id makes
+ * every mint revert BadVoucher. Note the EIP-712 DOMAIN_VERSION stays "2"
+ * (Loopiterns.sol:131) while the deployed contract is generation v3: the
+ * generation and the domain version are different things, and "fixing" the
+ * version here to match the generation would break every signature.
+ *
  * VOUCHER_SIGNER_PRIVATE_KEY must be the key whose address was passed as
- * MINT_SIGNER_ADDRESS to the v2 deploy. It is server-only: never
- * NEXT_PUBLIC_, never committed, never returned in any response.
+ * MINT_SIGNER_ADDRESS to the deploy. It is UNCHANGED across the Arc →
+ * Robinhood pivot: the live v3 contract at
+ * 0xF1d6AD543a47D84d5C624f80C0F22395BF524175 (4663) has mintSigner
+ * 0x486eCE21831ffa07661EF745746e2ec47a486222 — the same signer the retired
+ * v2 used. It is server-only: never NEXT_PUBLIC_, never committed, never
+ * returned in any response.
  */
 
 import { getAddress, hashTypedData, recoverAddress } from "viem";
 import { privateKeyToAddress, signTypedData } from "viem/accounts";
 import { NextResponse } from "next/server";
 import { getLoopiternsAddress } from "@/web3/loopiterns/address";
-import { ARC_CHAIN_ID } from "@/web3/config";
+import { ACTIVE_CHAIN_ID } from "@/web3/config";
 import { highestRarityForScore, isLoopiternRarityId, rarityById } from "@/game/mintTiers";
 import { VANILLA_MODIFIERS } from "@/game/traits";
 import { parseRunInputLog } from "@/game/sim/inputLog";
@@ -291,7 +303,7 @@ export async function POST(req: Request) {
   const signature = await signTypedData({
     domain: {
       ...VOUCHER_DOMAIN,
-      chainId: ARC_CHAIN_ID,
+      chainId: ACTIVE_CHAIN_ID,
       verifyingContract: contract,
     },
     types: VOUCHER_TYPES,
@@ -306,7 +318,7 @@ export async function POST(req: Request) {
     hash: hashTypedData({
       domain: {
         ...VOUCHER_DOMAIN,
-        chainId: ARC_CHAIN_ID,
+        chainId: ACTIVE_CHAIN_ID,
         verifyingContract: contract,
       },
       types: VOUCHER_TYPES,

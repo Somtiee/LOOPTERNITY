@@ -116,12 +116,16 @@ async function assertUniquePixels(pairs: Pair[]): Promise<void> {
 
 /**
  * Rows = rarity 0→4, columns = sample tokenIds — each row must show obvious
- * color/mark differences. Chosen over the DNA roll so every row pairs five
- * hue-separated accents (min gap ≈27°, rarity 0's catalog ceiling) with five
- * pairwise-distinct marks, so no column pair can read as a copy.
+ * color differences. Chosen over the DNA roll so every row pairs five
+ * hue-separated accents with five pairwise-distinct shading treatments, so no
+ * column pair can read as a copy. The ids were re-curated when the accent
+ * ladder was densified; measured against the current catalog their worst-case
+ * pairwise accent gap inside a row is 19.4° (r2: #1 teal vs #3 kelly), with no
+ * two columns sharing an accent in any row. Re-check both properties with
+ * `--sample` if the accent catalog ever changes.
  */
 async function writePreviewGrid(): Promise<string> {
-  const ids = [2, 37, 103, 120, 173];
+  const ids = [1, 3, 28, 31, 133];
   const rarities: LoopiternRarityId[] = [0, 1, 2, 3, 4];
   const tile = 192;
   const tiles: { input: Buffer; left: number; top: number }[] = [];

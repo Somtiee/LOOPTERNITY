@@ -26,8 +26,8 @@ export const CHARACTERS: Record<CharacterId, CharacterDef> = {
     skin: "#e8b894",
     skinShadow: "#c4845c",
     hair: "#1a1210",
-    // Charcoal-plum shell sits in the cool Arc-blue family; the ember
-    // trim stays the warm pop that marks Ash.
+    // Charcoal-plum shell — deliberately near-neutral, so the ember trim
+    // stays the only warm note that marks Ash.
     outfit: "#2c2135",
     trim: "#ff6a2a",
     eye: "#1a1210",
@@ -41,7 +41,7 @@ export const CHARACTERS: Record<CharacterId, CharacterDef> = {
     skinShadow: "#d49a78",
     hair: "#4b1f6b",
     outfit: "#18264a",
-    trim: "#6fc9ff",
+    trim: "#4ADE80",
     eye: "#0c1220",
   },
   nord: {
@@ -53,7 +53,7 @@ export const CHARACTERS: Record<CharacterId, CharacterDef> = {
     skinShadow: "#d4b090",
     hair: "#f4e4c4",
     outfit: "#d8e6f0",
-    trim: "#3E8BFF",
+    trim: "#00C805",
     eye: "#243040",
   },
 };

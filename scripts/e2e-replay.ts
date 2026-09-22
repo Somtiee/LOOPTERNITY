@@ -35,7 +35,7 @@ import {
 } from "../src/game/sim/inputLog";
 import { SIM_HZ } from "../src/game/sim/simMath";
 import { VANILLA_MODIFIERS } from "../src/game/traits";
-import { ARC_CHAIN_ID } from "../src/web3/config";
+import { ACTIVE_CHAIN_ID } from "../src/web3/config";
 import type { ThemeId } from "../src/game/types";
 import { autopilotInputs } from "./autopilot";
 
@@ -381,7 +381,7 @@ console.log("\nE. honest log → voucher:");
     hash: hashTypedData({
       domain: {
         ...VOUCHER_DOMAIN,
-        chainId: ARC_CHAIN_ID,
+        chainId: ACTIVE_CHAIN_ID,
         verifyingContract: contract,
       },
       types: VOUCHER_TYPES,

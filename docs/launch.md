@@ -1,24 +1,25 @@
 # LOOPTERNITY Launch Runbook
 
 Operational checklist for the live deployment on Robinhood Chain (4663).
-Everything here reflects the current tree and chain state — see
-`contracts/deployments/robinhood-4663.json` for the deployment record.
+Everything here reflects the current tree and chain state — see the `v3` block
+in `contracts/deployments/robinhood-4663.json` for the deployment record (the
+top-level fields in that file describe the retired v2).
 
 ## Current state (verify before acting)
 
 | Item | Value |
 | --- | --- |
-| Contract | `0x0914DcfdE10e5Df2aA1D8C850213712F64852637` |
+| Contract (v3) | `0xF1d6AD543a47D84d5C624f80C0F22395BF524175` |
 | Owner / treasury | `0xED638d2de9E7b6E8D06514A161bb2cEFf28bfCDd` |
-| Mint price | 0.0002 ETH (`mintPrice()`) |
+| Mint price | 0.0004 ETH (`400000000000000` wei, `mintPrice()`) |
 | Supply | 10,000 hard cap; rarity caps 5000 / 2500 / 1500 / 800 / 200 |
-| Wallet cap | 5 mints per wallet (mint-only; secondary purchases uncapped) |
+| Wallet cap | 10 mints per wallet (mint-only; secondary purchases uncapped) |
 | RPC / explorer | `https://rpc.mainnet.chain.robinhood.com` / `https://robinhoodchain.blockscout.com` |
 
 Quick live check:
 
 ```bash
-cast call 0x0914DcfdE10e5Df2aA1D8C850213712F64852637 "totalSupply()" \
+cast call 0xF1d6AD543a47D84d5C624f80C0F22395BF524175 "totalSupply()" \
   --rpc-url https://rpc.mainnet.chain.robinhood.com
 ```
 
@@ -35,7 +36,7 @@ cast call 0x0914DcfdE10e5Df2aA1D8C850213712F64852637 "totalSupply()" \
    treasury key:
 
    ```bash
-   cast send 0x0914DcfdE10e5Df2aA1D8C850213712F64852637 \
+   cast send 0xF1d6AD543a47D84d5C624f80C0F22395BF524175 \
      "setBaseURI(string)" "https://<PRODUCTION-DOMAIN>/api/loopitern/token/" \
      --rpc-url https://rpc.mainnet.chain.robinhood.com \
      --private-key <TREASURY_PRIVATE_KEY>
@@ -55,7 +56,7 @@ cast call 0x0914DcfdE10e5Df2aA1D8C850213712F64852637 "totalSupply()" \
 From `docs/vercel-env.txt` — set in the Vercel project (Production +
 Preview):
 
-- `NEXT_PUBLIC_LOOPITERNS_ADDRESS=0x0914DcfdE10e5Df2aA1D8C850213712F64852637`
+- `NEXT_PUBLIC_LOOPITERNS_ADDRESS=0xF1d6AD543a47D84d5C624f80C0F22395BF524175`
 - `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` — Reown project id (mobile wallets)
 - `VOUCHER_SIGNER_PRIVATE_KEY` — server-only key that signs mint vouchers
   (address must equal on-chain `mintSigner`, currently
@@ -72,7 +73,7 @@ Never put `PRIVATE_KEY` in Vercel. It belongs only in `contracts/.env`
 
 The contract holds all mint ETH. `withdraw(to)` is **owner-only**, sends the
 **full** balance, reverts `WithdrawFailed` on a rejecting receiver, emits
-`Withdrawn(to, amount)`. Covered by `forge test` (21/21).
+`Withdrawn(to, amount)`. Covered by `forge test` (32/32).
 
 From `contracts/` (reads `PRIVATE_KEY` from `contracts/.env`, never prints it):
 
@@ -89,16 +90,23 @@ requests, pause first, fix, unpause.
 
 ## Known non-issues (don't "fix" these)
 
-- **`raritiesOf()` is source-only.** It was added after deploy and is not in
-  the live bytecode. The app reads rarities through Multicall3 instead.
-  Redeclaring would orphan the minted tokens — don't.
+- **`raritiesOf()` is a batched view getter and must not be redeclared.** It
+  is declared `external view` at `contracts/src/Loopiterns.sol:115`, so it is
+  present in the deployed v3 bytecode (selector `0x8bff1fcc` dispatches — a
+  live probe returns `ERC721NonexistentToken` for an unminted id while an
+  unknown selector reverts with empty data). It cannot mint, cannot change
+  price and cannot bypass any cap. The app reads rarities through Multicall3
+  instead, and the app ABI omits it, so no UI code calls it. Changing its
+  signature would change the deployed selector set — don't, without a fresh
+  deploy.
 - **Client survival time is untrusted — but the voucher gate is server-side.**
-  The v2 contract has no `claimedSeconds` at all; minting requires a signed
-  voucher. The server checks the rarity gate (30/60/90/120/150s) AND a
+  The contract has no public `mint()`; minting requires a signed voucher. The
+  server checks the rarity **score** gates (15k/25k/35k/45k/60k) AND a
   run-seed attestation: a seed is stamped at run start and a voucher is only
-  signed after real wall-clock time ≥ the gate passed since. On-chain truth =
-  signature, price paid, wallet cap, supply. (v1's `claimedSeconds` was UX
-  only; v1 is withdrawn, paused, retired.)
+  signed after real wall-clock time ≥ the anti-spam floor passed since. On-chain
+  truth = signature, price paid, wallet cap, supply. (`claimedSeconds` still
+  exists on the struct but is vestigial — `mintWithVoucher` writes 0; v1's use
+  of it was UX only, and v1 is withdrawn, paused, retired.)
 - **`contracts/foundry.toml` still carries Inco-era remappings and a
   `[profile.deploy]`** from the removed Base vault. Harmless — the default
   profile compiles and tests the active contract. Ignore them.
@@ -110,7 +118,7 @@ Source of truth: `contracts/src/Loopiterns.sol` (solc 0.8.29, tests in
 
 - Rarity drop-down: requested tier sold out → next lower tier with supply;
   never an upgrade. All tiers exhausted → `SoldOut()`.
-- Wrong value sent → `WrongPrice()`. 6th mint from a wallet → `WalletCap()`.
+- Wrong value sent → `WrongPrice()`. 11th mint from a wallet → `WalletCap()`.
 - Token ids start at 1 (`totalSupply() + 1`).
 - `Minted(to, id, rarity, requested)` event lets the UI detect a
   drop-down mint (`rarity != requested`).

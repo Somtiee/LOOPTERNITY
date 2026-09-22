@@ -14,8 +14,10 @@ export type DrawCharacterOpts = {
 
 /**
  * Local-space human (origin = hitbox center). Same footprint for every
- * look. Climb pose: bent pumping limbs, tapered torso, and per-build gear
- * (Ash's ember scarf, Nova's cosmic visor, Nord's fur-trimmed ice hood).
+ * look. Climb pose: bent pumping limbs, a tapered torso whose hem rides
+ * above the hips — the same build language as the LOOPITERN rig, so the
+ * two share one silhouette rule — plus per-build gear (Ash's ember scarf,
+ * Nova's cosmic visor, Nord's fur-trimmed ice hood).
  */
 export function drawCharacter(
   ctx: CanvasRenderingContext2D,
@@ -129,15 +131,19 @@ export function drawCharacter(
     ctx.fill();
   }
 
-  // Torso — tapered, shoulders wider than the waist.
+  // Torso — tapered and high-riding: the shoulders are the widest point and
+  // the hem stops above the hips (legY), so the legs carry the silhouette.
+  // Same build language as the LOOPITERN rig in drawLoopitern.ts: a hem that
+  // dips below the hip line is what reads as a potbelly.
   const wS = bodyW / 2;
-  const wW = wS * 0.8;
+  const wW = wS * 0.82;
+  const hemY = legY - 2.5;
   ctx.fillStyle = look.outfit;
   ctx.beginPath();
   ctx.moveTo(-wS, bodyY + 4);
-  ctx.quadraticCurveTo(-wS - 0.6, bodyY + bodyH * 0.45, -wW, bodyY + bodyH - 1);
-  ctx.quadraticCurveTo(0, bodyY + bodyH + 2.2, wW, bodyY + bodyH - 1);
-  ctx.quadraticCurveTo(wS + 0.6, bodyY + bodyH * 0.45, wS, bodyY + 4);
+  ctx.quadraticCurveTo(-wS * 0.98, bodyY + bodyH * 0.45, -wW, hemY);
+  ctx.quadraticCurveTo(0, hemY + 2.2, wW, hemY);
+  ctx.quadraticCurveTo(wS * 0.98, bodyY + bodyH * 0.45, wS, bodyY + 4);
   ctx.quadraticCurveTo(0, bodyY - 3.5, -wS, bodyY + 4);
   ctx.closePath();
   ctx.fill();
@@ -148,14 +154,15 @@ export function drawCharacter(
     ctx.beginPath();
     ctx.roundRect(-2.2, bodyY + 2, 4.4, 4.2, 1.5);
     ctx.fill();
-    // Belt — anchors the tapered waist.
-    ctx.fillRect(-wW - 0.5, bodyY + bodyH - 4, wW * 2 + 1, 2.2);
+    // Belt — anchors the tapered waist, riding above the hem.
+    ctx.fillRect(-wW - 0.5, hemY - 3.6, wW * 2 + 1, 2.2);
   } else if (look.build === "lean") {
     ctx.fillRect(-wS, bodyY + 4, bodyW, 3);
     ctx.fillRect(-1.5, bodyY + 8, 3, 14);
   } else {
     ctx.fillRect(-wS + 3, bodyY + 8, bodyW - 6, 5);
-    ctx.fillRect(-wW, bodyY + bodyH - 5, wW * 2, 3.5);
+    // Hip band — rides above the hem like the belt above.
+    ctx.fillRect(-wW, hemY - 4.4, wW * 2, 3.5);
   }
 
   // Near arm — over the torso, mirrors the far arm.

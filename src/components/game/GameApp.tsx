@@ -72,13 +72,13 @@ const INITIAL_HUD: HudSnapshot = {
 };
 
 export default function GameApp() {
-  const { address, hasWallet, onArc: walletOnArc } =
+  const { address, hasWallet, onRobinhood: walletOnRobinhood } =
     useWalletSession();
   const { refresh } = usePlayerRegistry();
   const {
     tokenIds,
     loading: inventoryLoading,
-    onArc,
+    onRobinhood,
     configured,
     refetch: refetchInventory,
   } = useLoopiternsInventory();
@@ -88,7 +88,7 @@ export default function GameApp() {
   // never fakes the cap.
   const mintCapReached =
     configured &&
-    onArc &&
+    onRobinhood &&
     !inventoryLoading &&
     tokenIds.length >= MAX_LOOPITERNS_PER_WALLET;
   const coarsePointer = useCoarsePointer();
@@ -191,7 +191,7 @@ export default function GameApp() {
   }, [address]);
 
   useEffect(() => {
-    if (!address || !onArc || !configured || inventoryLoading) return;
+    if (!address || !onRobinhood || !configured || inventoryLoading) return;
     if (!equipped) return;
     // Checked against every owned id, not just the visible page — a token
     // beyond the current page must not be auto-unequipped.
@@ -205,7 +205,7 @@ export default function GameApp() {
     configured,
     equipped,
     inventoryLoading,
-    onArc,
+    onRobinhood,
     tokenIds,
   ]);
 
@@ -281,11 +281,11 @@ export default function GameApp() {
 
   const startRun = useCallback(() => {
     if (mode === "p2e") return;
-    // Connect-first: both modes need a wallet, P2M needs it on Arc
+    // Connect-first: both modes need a wallet, P2M needs it on Robinhood
     // Chain (the mint lives there). The menu gates this too — this is the
     // backstop.
     if (!hasWallet) return;
-    if (mode === "p2m" && !walletOnArc) return;
+    if (mode === "p2m" && !walletOnRobinhood) return;
     if (mode === "p2m" && (supply.soldOut || mintCapReached)) return;
     launchRun();
   }, [
@@ -294,7 +294,7 @@ export default function GameApp() {
     mintCapReached,
     mode,
     supply.soldOut,
-    walletOnArc,
+    walletOnRobinhood,
   ]);
 
   const restart = useCallback(() => {
@@ -383,7 +383,7 @@ export default function GameApp() {
         soldOut={supply.soldOut}
         mintCapReached={mintCapReached}
         walletConnected={hasWallet}
-        onArc={walletOnArc}
+        onRobinhood={walletOnRobinhood}
       />
     );
   }

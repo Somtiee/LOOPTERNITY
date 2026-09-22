@@ -18,12 +18,15 @@ import { chromium } from "playwright";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { ACTIVE_CHAIN_ID } from "../src/web3/config";
 
 const BASE = process.env.E2E_BASE_URL ?? "http://localhost:3000";
 const SHOTS = join(tmpdir(), "loopternity-verify");
 mkdirSync(SHOTS, { recursive: true });
 
 const MINTER = "0x1111111111111111111111111111111111111111";
+/** The chain the app is configured for, never a literal. */
+const CHAIN_ID_HEX = `0x${ACTIVE_CHAIN_ID.toString(16)}`;
 const WALLET_STUB = `
   Object.defineProperty(window, "ethereum", {
     value: {
@@ -31,8 +34,8 @@ const WALLET_STUB = `
       request: async ({ method }) => {
         if (method === "eth_accounts" || method === "eth_requestAccounts")
           return ["${MINTER}"];
-        if (method === "eth_chainId") return "0x4cef52";
-        if (method === "net_version") return "5042002";
+        if (method === "eth_chainId") return "${CHAIN_ID_HEX}";
+        if (method === "net_version") return "${ACTIVE_CHAIN_ID}";
         if (method === "wallet_getPermissions") return [];
         return null;
       },

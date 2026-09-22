@@ -22,6 +22,29 @@ export type DrawLoopiternOpts = {
 };
 
 /**
+ * Torso silhouette. One outline, shared by the body fill and the sketch
+ * shading clip, so pencil strokes can never spill past the body.
+ *
+ * The chest is the widest point and the hem stops ABOVE the hip line — that
+ * is what keeps the build leggy. A hem that dips below the hips is what
+ * reads as a potbelly, so `TORSO_HEM_Y` must stay above `hipY` in
+ * `drawLoopitern`.
+ */
+const TORSO_TOP_Y = -33;
+const TORSO_MID_Y = -27.5;
+const TORSO_HEM_Y = -20.5;
+
+function torsoPath(ctx: CanvasRenderingContext2D, chestW: number) {
+  ctx.beginPath();
+  ctx.moveTo(-chestW, TORSO_TOP_Y);
+  ctx.quadraticCurveTo(-chestW * 0.98, TORSO_MID_Y, -chestW * 0.68, TORSO_HEM_Y);
+  ctx.quadraticCurveTo(0, TORSO_HEM_Y + 1.6, chestW * 0.68, TORSO_HEM_Y);
+  ctx.quadraticCurveTo(chestW * 0.98, TORSO_MID_Y, chestW, TORSO_TOP_Y);
+  ctx.quadraticCurveTo(0, -42, -chestW, TORSO_TOP_Y);
+  ctx.closePath();
+}
+
+/**
  * LOOPITERN collection runner. Origin = hitbox center, same footprint as
  * ASH/NOVA/NORD. Leggy climber build: slim torso that rides high with a
  * chest bib (never a gut), long bent legs swinging from hips below the
@@ -78,14 +101,25 @@ export function drawLoopitern(
   const footAx = -4.2 + stride * 0.8;
   const footBx = 4.2 - stride * 0.8;
 
-  // Hips sit just under the torso's hem so the whole shin reads as leg.
-  const hipY = -16;
+  // Hips sit just under the torso's hem so the whole thigh reads as leg.
+  const hipY = -18.5;
   const kneeY = -8.4;
 
-  // Far arm (behind the torso), counter-phase with the far leg.
-  const farElbowX = -9.2 - swing * 1.5;
-  capsuleLimb(ctx, -6.4, -34, farElbowX, -27, 4.4, palette.fill);
-  capsuleLimb(ctx, farElbowX, -27, -5.6 - swing * 4, -20.5 - swing * 2.6, 3.6, palette.fill);
+  // Far arm (behind the torso), counter-phase with the far leg. Tucked: the
+  // elbow rides just outside the torso's widest point and the hand pumps in
+  // toward the chest — arms that splay wider than the chest merge with it
+  // into one rounded mass and read as a gut.
+  const farElbowX = -8.9 - swing * 0.8;
+  capsuleLimb(ctx, -6.4, -34, farElbowX, -27.4, 4.2, palette.fill);
+  capsuleLimb(
+    ctx,
+    farElbowX,
+    -27.4,
+    -4.8 - swing * 3.2,
+    -20.5 - swing * 2.6,
+    3.4,
+    palette.fill,
+  );
 
   // Far leg — knee bent forward, shin swinging to its foot.
   const farKneeX = -3.4 + 2.4 + lift * 1.7;
@@ -95,23 +129,18 @@ export function drawLoopitern(
 
   if (rarity === 4) drawWaveCape(ctx, bob, palette.cape ?? LOOPITERN_ACCENT);
 
-  // Torso — slim and high-riding: chest wider than the hips, and the hem
-  // stops above the hips so the legs carry the silhouette.
+  // Torso — slim and high-riding: the chest is the silhouette's widest point
+  // and it tapers from there to a hem that stops ABOVE the hips (hipY), so
+  // everything under the chest reads as leg. Never a gut.
   const chestW = rarity >= 3 ? 9.4 : 8.8;
   ctx.fillStyle = palette.fill;
-  ctx.beginPath();
-  ctx.moveTo(-chestW, -33);
-  ctx.quadraticCurveTo(-chestW - 0.5, -24, -chestW * 0.7, -15.5);
-  ctx.quadraticCurveTo(0, -12.4, chestW * 0.7, -15.5);
-  ctx.quadraticCurveTo(chestW + 0.5, -24, chestW, -33);
-  ctx.quadraticCurveTo(0, -42, -chestW, -33);
-  ctx.closePath();
+  torsoPath(ctx, chestW);
   ctx.fill();
 
-  // Chest bib — high on the torso, never a gut.
+  // Chest bib — high on the torso, clear of the hem, never a gut.
   ctx.fillStyle = palette.belly;
   ctx.beginPath();
-  ctx.ellipse(1.2, -30, 4.4, 6, 0.06, 0, Math.PI * 2);
+  ctx.ellipse(1.2, -31.5, 4.2, 5.2, 0.06, 0, Math.PI * 2);
   ctx.fill();
 
   // DNA sketchbook shading — light pencil strokes inside the shadow side
@@ -128,10 +157,18 @@ export function drawLoopitern(
   capsuleLimb(ctx, nearKneeX, kneeY, footBx, footBy + 0.6, 4.2, palette.fill);
   drawFootPad(ctx, footBx, footBy);
 
-  // Near arm — pumps against the near leg.
-  const nearElbowX = 9.2 + swing * 1.5;
-  capsuleLimb(ctx, 6.4, -34, nearElbowX, -27, 4.6, palette.fill);
-  capsuleLimb(ctx, nearElbowX, -27, 5.6 + swing * 4, -20.5 + swing * 2.6, 3.8, palette.fill);
+  // Near arm — pumps against the near leg, tucked to match the far one.
+  const nearElbowX = 8.9 + swing * 0.8;
+  capsuleLimb(ctx, 6.4, -34, nearElbowX, -27.4, 4.4, palette.fill);
+  capsuleLimb(
+    ctx,
+    nearElbowX,
+    -27.4,
+    4.8 + swing * 3.2,
+    -20.5 + swing * 2.6,
+    3.6,
+    palette.fill,
+  );
 
   // Head
   const headY = -42;
@@ -204,13 +241,14 @@ function drawSketchShading(
 ) {
   const alpha = SHADING_WEIGHT_ALPHA[shading.weight] ?? 0.24;
   ctx.save();
-  // Clip to the lower-right (shadow side) of the torso so strokes never
-  // spill onto the bib patch or outside the body.
-  ctx.beginPath();
-  ctx.ellipse(0, -27, chestW + 0.3, 13.4, 0, 0, Math.PI * 2);
+  // Clip to the torso outline itself, then to its lower-right (shadow side),
+  // so a stroke from any style is bounded by the real body — retune the
+  // silhouette above and the shading follows, with no spill onto the bib
+  // patch and nothing left floating past the hem.
+  torsoPath(ctx, chestW);
   ctx.clip();
   ctx.beginPath();
-  ctx.rect(-2, -27, 14, 24);
+  ctx.rect(-2, TORSO_TOP_Y - 6, 16, TORSO_HEM_Y - TORSO_TOP_Y + 12);
   ctx.clip();
   // Stroke coords were authored for the old, lower torso — shift them up
   // to follow the slim high-riding silhouette.
@@ -470,12 +508,12 @@ function drawHalo(
   headY: number,
   headR: number,
 ) {
-  ctx.strokeStyle = "#c8e4ff";
+  ctx.strokeStyle = "#D6F5DE";
   ctx.lineWidth = 3.2;
   ctx.beginPath();
   ctx.ellipse(0, headY - headR - 5, 10, 3.6, 0, 0, Math.PI * 2);
   ctx.stroke();
-  ctx.fillStyle = "#f2f8ff";
+  ctx.fillStyle = "#F2FBF5";
   ctx.beginPath();
   ctx.arc(-5.6, headY - headR - 5, 1.7, 0, Math.PI * 2);
   ctx.arc(5.6, headY - headR - 5, 1.7, 0, Math.PI * 2);

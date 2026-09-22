@@ -53,7 +53,7 @@ export function LoopiternEquip({
   const {
     configured,
     hasWallet,
-    onArc,
+    onRobinhood,
     loading,
     tokens,
     totalOwned,
@@ -106,10 +106,10 @@ export function LoopiternEquip({
   if (!hasWallet) {
     body = (
       <p className="text-xs leading-relaxed text-white/45">
-        Connect a wallet on Arc to equip LOOPITERNS.
+        Connect a wallet on Robinhood to equip LOOPITERNS.
       </p>
     );
-  } else if (!onArc) {
+  } else if (!onRobinhood) {
     body = (
       <p className="text-xs leading-relaxed text-white/45">
         WRONG NETWORK · {CHAIN_SWITCH_LABEL}. Switch to load your LOOPITERNS.
@@ -168,12 +168,12 @@ export function LoopiternEquip({
                       onClick={() => setDetail(token)}
                       className={`flex min-h-[8.5rem] flex-col items-center rounded-2xl border px-1.5 py-2 transition duration-200 sm:min-h-[9.25rem] sm:px-2 ${
                         selected
-                          ? "border-[#3E8BFF]/55 bg-[#3E8BFF]/10"
+                          ? "border-[#00C805]/55 bg-[#00C805]/10"
                           : "border-white/10 bg-black/25 hover:border-white/25 hover:bg-white/5"
                       }`}
                       style={
                         selected
-                          ? { boxShadow: `0 0 28px ${(rarity?.accent ?? "#3E8BFF") + "33"}` }
+                          ? { boxShadow: `0 0 28px ${(rarity?.accent ?? "#00C805") + "33"}` }
                           : undefined
                       }
                     >
@@ -187,7 +187,7 @@ export function LoopiternEquip({
                       </span>
                       <span
                         className="mt-0.5 font-[family-name:var(--font-display)] text-[9px] tracking-[0.12em] sm:text-[10px]"
-                        style={{ color: rarity?.accent ?? "#3E8BFF" }}
+                        style={{ color: rarity?.accent ?? "#00C805" }}
                       >
                         {rarity?.name.toUpperCase() ?? "LOOPITERN"}
                       </span>
@@ -330,7 +330,7 @@ function LoopiternDetail({
             </p>
             <p
               className="mt-1 font-[family-name:var(--font-display)] text-[11px] tracking-[0.18em]"
-              style={{ color: rarity?.accent ?? "#3E8BFF" }}
+              style={{ color: rarity?.accent ?? "#00C805" }}
             >
               {rarity?.name.toUpperCase() ?? "LOOPITERN"}
             </p>
@@ -362,7 +362,7 @@ function LoopiternDetail({
             disabled={selected}
             className={`rounded-xl border px-3 py-2.5 font-[family-name:var(--font-display)] text-[11px] tracking-[0.16em] transition ${
               selected
-                ? "cursor-default border-[#3E8BFF]/55 bg-[#3E8BFF]/10 text-[#3E8BFF]"
+                ? "cursor-default border-[#00C805]/55 bg-[#00C805]/10 text-[#00C805]"
                 : "border-white/15 bg-black/25 text-white hover:border-white/30"
             }`}
           >

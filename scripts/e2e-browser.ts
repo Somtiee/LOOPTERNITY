@@ -19,16 +19,21 @@
  */
 
 import { chromium } from "playwright";
+import { RARITIES } from "../src/game/mintTiers";
+import { formatScore } from "../src/game/score";
 import { SIM_HZ } from "../src/game/sim/simMath";
+import { ACTIVE_CHAIN_ID } from "../src/web3/config";
 
 const BASE = process.env.E2E_BASE_URL ?? "http://localhost:3000";
 const MINTER = "0x1111111111111111111111111111111111111111";
+/** The chain the app is configured for, never a literal. */
+const CHAIN_ID_HEX = `0x${ACTIVE_CHAIN_ID.toString(16)}`;
 
 /**
  * Minimal EIP-1193 stub injected before app load. Web3Providers'
  * RestoreInjectedWallet sees eth_accounts return an address and auto-connects
- * the injected connector on chain 0x1237 (4663), exactly like a real MetaMask
- * session restored on Robinhood Chain.
+ * the injected connector on the active chain (from src/web3/config.ts),
+ * exactly like a real MetaMask session restored on it.
  */
 const WALLET_STUB = `
   Object.defineProperty(window, "ethereum", {
@@ -37,8 +42,8 @@ const WALLET_STUB = `
       request: async ({ method }) => {
         if (method === "eth_accounts" || method === "eth_requestAccounts")
           return ["${MINTER}"];
-        if (method === "eth_chainId") return "0x1237";
-        if (method === "net_version") return "4663";
+        if (method === "eth_chainId") return "${CHAIN_ID_HEX}";
+        if (method === "net_version") return "${ACTIVE_CHAIN_ID}";
         if (method === "wallet_getPermissions") return [];
         return null;
       },
@@ -134,7 +139,7 @@ const PAGE_AUTOPILOT = `
 
 type PageP2m = {
   runSession: { sessionId: string; seed: number; themeId: string } | null;
-  runRecord: { timeSurvived: number; inputLog: unknown } | null;
+  runRecord: { timeSurvived: number; score: number; inputLog: unknown } | null;
 };
 
 async function main() {
@@ -219,10 +224,10 @@ async function main() {
     assert(record && session, "runRecord/runSession missing after death");
 
     console.log(
-      `  attempt ${attempt}: seed ${session.seed} (${session.themeId}) → ${record.timeSurvived.toFixed(3)}s`,
+      `  attempt ${attempt}: seed ${session.seed} (${session.themeId}) → ${record.timeSurvived.toFixed(3)}s, score ${formatScore(record.score)}`,
     );
-    if (record.timeSurvived >= 31) break;
-    if (attempt >= 8) fail("browser autopilot never survived 31s in 8 tries");
+    if (record.score >= RARITIES[0].minScore) break;
+    if (attempt >= 8) fail("browser autopilot never reached the Common score gate in 8 tries");
     // RUN AGAIN → GameApp fetches a fresh session, then restarts.
     await page
       .getByRole("button", { name: "RUN AGAIN", exact: true })
@@ -239,16 +244,17 @@ async function main() {
   const claim = {
     address: MINTER,
     rarity: 0,
+    score: record!.score,
     timeSurvived: record!.timeSurvived,
     sessionId: session!.sessionId,
     inputLog: record!.inputLog,
   };
   console.log(
-    `  honest browser run: ${claim.timeSurvived.toFixed(3)}s, log ${JSON.stringify(claim.inputLog).length / 1024}KB, session ${claim.sessionId}`,
+    `  honest browser run: score ${formatScore(claim.score)} in ${claim.timeSurvived.toFixed(3)}s, log ${JSON.stringify(claim.inputLog).length / 1024}KB, session ${claim.sessionId}`,
   );
 
-  // Wall-clock gate (30s since issue — playing took real time, but wait out
-  // any remainder).
+  // Wall-clock floor (ceil(30s × 0.4) = 12s since issue — playing took real
+  // time, but wait out any remainder).
   const waited = await page.evaluate(
     () => document.timeline?.currentTime ?? performance.now(),
   );
@@ -265,7 +271,7 @@ async function main() {
   if (res.status === 403 && String(res.json.error).includes("too fast")) {
     const match = /this run is (\d+)s in/.exec(String(res.json.error));
     const elapsed = match ? Number(match[1]) : 0;
-    const waitS = Math.max(1, 31 - elapsed);
+    const waitS = Math.max(1, 12 - elapsed);
     console.log(`  wall-clock: waiting ${waitS.toFixed(0)}s…`);
     await new Promise((r) => setTimeout(r, waitS * 1000));
     const retry = await page.evaluate(async (body: unknown) => {

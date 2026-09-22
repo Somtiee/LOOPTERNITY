@@ -3,7 +3,7 @@
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useSwitchChain } from "wagmi";
 import {
-  ARC_CHAIN,
+  ACTIVE_CHAIN,
   CHAIN_LABEL,
   CHAIN_SWITCH_LABEL,
 } from "@/web3/config";
@@ -52,7 +52,7 @@ export function ConnectWalletButton({
                 type="button"
                 disabled
                 aria-label="Reconnecting wallet"
-                className={`${shell} cursor-wait border-[#3E8BFF]/40 bg-[#3E8BFF]/20 text-[#7CC4FF]`}
+                className={`${shell} cursor-wait border-[#00C805]/40 bg-[#00C805]/20 text-[#4ADE80]`}
               >
                 …
               </button>
@@ -64,21 +64,21 @@ export function ConnectWalletButton({
               <button
                 type="button"
                 onClick={openConnectModal}
-                className={`${shell} border-[#3E8BFF]/80 bg-[#3E8BFF] text-[#061020] hover:brightness-110`}
+                className={`${shell} border-[#00C805]/80 bg-[#00C805] text-[#04140a] hover:brightness-110`}
               >
                 CONNECT WALLET
               </button>
             );
           }
 
-          if (chain.unsupported || chain.id !== ARC_CHAIN.id) {
+          if (chain.unsupported || chain.id !== ACTIVE_CHAIN.id) {
             return (
               <button
                 type="button"
                 onClick={() => {
                   void (async () => {
                     try {
-                      await switchChainAsync({ chainId: ARC_CHAIN.id });
+                      await switchChainAsync({ chainId: ACTIVE_CHAIN.id });
                     } catch {
                       openChainModal();
                     }
@@ -95,7 +95,7 @@ export function ConnectWalletButton({
             <button
               type="button"
               onClick={openAccountModal}
-              className={`${shell} border-[#3E8BFF]/45 bg-[#3E8BFF]/15 tracking-[0.12em] text-[#7CC4FF] hover:bg-[#3E8BFF]/25`}
+              className={`${shell} border-[#00C805]/45 bg-[#00C805]/15 tracking-[0.12em] text-[#4ADE80] hover:bg-[#00C805]/25`}
               title={`${account.address} · ${chain.name ?? CHAIN_LABEL}`}
             >
               {truncateAddress(account.address)}

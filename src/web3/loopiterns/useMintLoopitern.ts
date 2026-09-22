@@ -17,7 +17,7 @@ import {
 import { stillApiPath } from "@/game/loopiternStills";
 import type { RunInputLog } from "@/game/sim/inputLog";
 import type { RunRecord } from "@/game/engine/Game";
-import { EXPLORER_ORIGIN, ARC_CHAIN_ID } from "@/web3/config";
+import { ACTIVE_CHAIN_ID, EXPLORER_ORIGIN } from "@/web3/config";
 import { useWalletSession } from "@/web3/hooks/useWalletSession";
 import { isReachabilityError, walletTxError } from "@/web3/walletErrors";
 import { loopiternsAbi } from "./abi";
@@ -51,15 +51,15 @@ function remainingToNumbers(
   });
 }
 
-/** Native USDC on Arc is 18 decimals — same shape as ETH, unit label differs. */
-export function formatMintPriceUsdc(wei: bigint): string {
-  const usdc = formatEther(wei);
-  const n = Number(usdc);
-  if (!Number.isFinite(n) || n === 0) return `${usdc} USDC`;
+/** Robinhood Chain's native gas token is ETH, 18 decimals — the mint price's unit. */
+export function formatMintPriceEth(wei: bigint): string {
+  const eth = formatEther(wei);
+  const n = Number(eth);
+  if (!Number.isFinite(n) || n === 0) return `${eth} ETH`;
   if (n >= 0.0001) {
-    return `${n.toFixed(6).replace(/0+$/, "").replace(/\.$/, "")} USDC`;
+    return `${n.toFixed(6).replace(/0+$/, "").replace(/\.$/, "")} ETH`;
   }
-  return `${usdc} USDC`;
+  return `${eth} ETH`;
 }
 
 async function fetchVoucher(
@@ -110,7 +110,7 @@ type MintFees =
   | { maxFeePerGas: bigint; maxPriorityFeePerGas?: bigint }
   | { gasPrice?: undefined; maxFeePerGas?: undefined; maxPriorityFeePerGas?: undefined };
 
-/** Fee bump over the RPC estimate — cheap on a USDC-gas testnet. */
+/** Fee bump over the RPC estimate — gas on Robinhood is paid in ETH. */
 const FEE_BOOST = 2n;
 /** Priority-fee floor (0.1 gwei) so the tx never queues behind zero-tip txs. */
 const PRIORITY_FLOOR_WEI = 100_000_000n;
@@ -163,7 +163,7 @@ async function fastMintFees(client: PublicClient): Promise<MintFees> {
  * server for a signed voucher; the server re-runs the recorded input log
  * through the identical deterministic sim and only signs if the replayed
  * run genuinely reached the rarity's SCORE gate; the chain checks the
- * signature, price, max 5, 10k cap, and per-rarity remaining. No
+ * signature, price, max 10, 10k cap, and per-rarity remaining. No
  * "verified" badge — the voucher only proves the server watched a real run
  * reach the gate.
  */
@@ -173,9 +173,9 @@ export function useMintLoopitern(
   sessionId: string | null,
   runRecord: RunRecord | null,
 ) {
-  const { address: wallet, onArc, hasWallet, chainId } =
+  const { address: wallet, onRobinhood, hasWallet, chainId } =
     useWalletSession();
-  const publicClient = usePublicClient({ chainId: ARC_CHAIN_ID });
+  const publicClient = usePublicClient({ chainId: ACTIVE_CHAIN_ID });
   const contract = getLoopiternsAddress();
   const [localError, setLocalError] = useState<string | null>(null);
   const [tokenId, setTokenId] = useState<bigint | null>(null);
@@ -187,7 +187,7 @@ export function useMintLoopitern(
     address: contract,
     abi: loopiternsAbi,
     functionName: "mintPrice",
-    chainId: ARC_CHAIN_ID,
+    chainId: ACTIVE_CHAIN_ID,
     query: { enabled },
   });
 
@@ -195,7 +195,7 @@ export function useMintLoopitern(
     address: contract,
     abi: loopiternsAbi,
     functionName: "remainingAll",
-    chainId: ARC_CHAIN_ID,
+    chainId: ACTIVE_CHAIN_ID,
     query: { enabled },
   });
 
@@ -203,7 +203,7 @@ export function useMintLoopitern(
     address: contract,
     abi: loopiternsAbi,
     functionName: "totalSupply",
-    chainId: ARC_CHAIN_ID,
+    chainId: ACTIVE_CHAIN_ID,
     query: { enabled },
   });
 
@@ -212,7 +212,7 @@ export function useMintLoopitern(
     abi: loopiternsAbi,
     functionName: "balanceOf",
     args: wallet ? [wallet] : undefined,
-    chainId: ARC_CHAIN_ID,
+    chainId: ACTIVE_CHAIN_ID,
     query: { enabled: balanceEnabled },
   });
 
@@ -220,7 +220,7 @@ export function useMintLoopitern(
     address: contract,
     abi: loopiternsAbi,
     functionName: "paused",
-    chainId: ARC_CHAIN_ID,
+    chainId: ACTIVE_CHAIN_ID,
     query: { enabled },
   });
 
@@ -266,8 +266,8 @@ export function useMintLoopitern(
     error: waitError,
   } = useWaitForTransactionReceipt({
     hash,
-    chainId: ARC_CHAIN_ID,
-    // Receipt polling rides the public Arc RPC; a transient 429/timeout
+    chainId: ACTIVE_CHAIN_ID,
+    // Receipt polling rides the public Robinhood RPC; a transient 429/timeout
     // there must not surface as a failed mint while the tx is really just
     // waiting for a block — retry quietly before giving up.
     query: {
@@ -337,7 +337,7 @@ export function useMintLoopitern(
     if (err) {
       return walletTxError(
         err,
-        chainId ?? ARC_CHAIN_ID,
+        chainId ?? ACTIVE_CHAIN_ID,
         "mint",
       );
     }
@@ -346,7 +346,7 @@ export function useMintLoopitern(
 
   const mint = useCallback(async () => {
     if (!contract || !resolved || mintPrice === undefined) return;
-    if (!hasWallet || !onArc) return;
+    if (!hasWallet || !onRobinhood) return;
     if (!wallet) return;
     if (ownedCount >= MAX_PER_WALLET || paused) return;
     if (!sessionId || !runRecord) {
@@ -381,7 +381,7 @@ export function useMintLoopitern(
       //    catches an already-minted run (UsedNonce), an expired voucher, a
       //    price change, the wallet cap, or a sellout BEFORE gas is spent.
       //    A transient public-RPC failure falls through to the send — the
-      //    wallet talks to Arc through its own RPC, which may be fine.
+      //    wallet talks to Robinhood through its own RPC, which may be fine.
       if (publicClient) {
         try {
           await withRpcDeadline(
@@ -406,14 +406,14 @@ export function useMintLoopitern(
         functionName: "mintWithVoucher",
         args: [...args],
         value: mintPrice,
-        chainId: ARC_CHAIN_ID,
+        chainId: ACTIVE_CHAIN_ID,
         ...fees,
       });
     } catch (e) {
       const message =
         e instanceof Error && e.message
           ? e.message
-          : walletTxError(e, chainId ?? ARC_CHAIN_ID, "mint");
+          : walletTxError(e, chainId ?? ACTIVE_CHAIN_ID, "mint");
       // The run already minted (stuck-tx retry, second tab, …) — the chain
       // would reject a second mint; say so plainly instead of a raw revert.
       if (/UsedNonce/i.test(message)) {
@@ -433,7 +433,7 @@ export function useMintLoopitern(
     contract,
     hasWallet,
     mintPrice,
-    onArc,
+    onRobinhood,
     ownedCount,
     paused,
     publicClient,

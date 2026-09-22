@@ -36,7 +36,7 @@ export type LoopiternRarity = {
    */
   minSeconds: number;
   supply: number;
-  /** Arc-blue family; brighter as rarity climbs. */
+  /** Robinhood-green family; brighter as rarity climbs. */
   accent: string;
 };
 
@@ -47,7 +47,7 @@ export const RARITIES: readonly LoopiternRarity[] = [
     minScore: 15_000,
     minSeconds: 30,
     supply: 5_000,
-    accent: "#2E63D6",
+    accent: "#0E8A3E",
   },
   {
     id: 1,
@@ -55,7 +55,7 @@ export const RARITIES: readonly LoopiternRarity[] = [
     minScore: 25_000,
     minSeconds: 60,
     supply: 2_500,
-    accent: "#3E8BFF",
+    accent: "#00C805",
   },
   {
     id: 2,
@@ -63,7 +63,7 @@ export const RARITIES: readonly LoopiternRarity[] = [
     minScore: 35_000,
     minSeconds: 90,
     supply: 1_500,
-    accent: "#62A8FF",
+    accent: "#4ADE80",
   },
   {
     id: 3,
@@ -71,7 +71,7 @@ export const RARITIES: readonly LoopiternRarity[] = [
     minScore: 45_000,
     minSeconds: 120,
     supply: 800,
-    accent: "#9CC6FF",
+    accent: "#86EFAC",
   },
   {
     id: 4,
@@ -79,7 +79,7 @@ export const RARITIES: readonly LoopiternRarity[] = [
     minScore: 60_000,
     minSeconds: 150,
     supply: 200,
-    accent: "#D6E9FF",
+    accent: "#D6F5DE",
   },
 ] as const;
 

@@ -4,8 +4,9 @@
  * Run: npx tsx scripts/replay-check.ts
  *
  * What this proves (the properties the voucher route depends on):
- *   1. Same (seed, theme, dims, input log) → bit-identical replay outcome,
- *      across every theme and playfield width, run twice (pure determinism).
+ *   1. Same (seed, theme, dims, input log) → bit-identical replay outcome
+ *      (time AND score), across every theme and playfield width, run twice
+ *      (pure determinism).
  *   2. The recorded log survives a JSON round-trip exactly (client → server
  *      transport cannot perturb the replay).
  *   3. A tampered log (one axis span flipped late in the run) changes the
@@ -65,6 +66,7 @@ function playAutopilotRun(
     log: rec.finish(sim.tick, sim.width, sim.height),
     result: {
       timeSurvived: sim.time,
+      score: sim.score(),
       phase: sim.phase,
       ticks: sim.tick,
     },
@@ -90,13 +92,14 @@ function replay(
 function sameOutcome(a: ReplayResult, b: ReplayResult): boolean {
   return (
     a.timeSurvived === b.timeSurvived &&
+    a.score === b.score &&
     a.phase === b.phase &&
     a.ticks === b.ticks
   );
 }
 
 function fmt(r: ReplayResult): string {
-  return `${r.timeSurvived.toFixed(3)}s ${r.phase} @tick ${r.ticks}`;
+  return `${r.timeSurvived.toFixed(3)}s score ${r.score} ${r.phase} @tick ${r.ticks}`;
 }
 
 // --- 1 + 2: replay fidelity, determinism, JSON round-trip -------------------

@@ -14,7 +14,7 @@ import { LoopiternEquip } from "./LoopiternEquip";
 import { LoopiternPortrait } from "./LoopiternPortrait";
 import { MuteButton } from "./MuteButton";
 import type { EquippedLoopitern } from "@/web3/loopiterns/equip";
-import { formatMintPriceUsdc } from "@/web3/loopiterns";
+import { formatMintPriceEth } from "@/web3/loopiterns";
 import { useLoopiternsSupply } from "@/web3/loopiterns/useLoopiternsSupply";
 
 type StartMenuProps = {
@@ -37,8 +37,8 @@ type StartMenuProps = {
   mintCapReached: boolean;
   /** Both modes need a connected wallet before START unlocks. */
   walletConnected: boolean;
-  /** P2M also needs the wallet on Arc — the mint lives there. */
-  onArc: boolean;
+  /** P2M also needs the wallet on Robinhood — the mint lives there. */
+  onRobinhood: boolean;
 };
 
 const DIFFICULTY_ORDER: DifficultyId[] = ["easy", "medium", "hard"];
@@ -77,7 +77,7 @@ export function StartMenu({
   soldOut,
   mintCapReached,
   walletConnected,
-  onArc,
+  onRobinhood,
 }: StartMenuProps) {
   const [hubOpen, setHubOpen] = useState(false);
   const [tab, setTab] = useState<"characters" | "loopiterns">("characters");
@@ -88,12 +88,12 @@ export function StartMenu({
   // P2M costs the on-chain mint price per LOOPITERN — never badge it "free".
   const p2mPriceLabel =
     supply.mintPrice !== null
-      ? `${formatMintPriceUsdc(supply.mintPrice)} / MINT`
-      : "MINT COSTS USDC";
+      ? `${formatMintPriceEth(supply.mintPrice)} / MINT`
+      : "MINT COSTS ETH";
   const p2mLocked = mode === "p2m" && soldOut;
   const p2mCapped = mode === "p2m" && mintCapReached;
   const walletReady =
-    mode === "p2m" ? walletConnected && onArc : walletConnected;
+    mode === "p2m" ? walletConnected && onRobinhood : walletConnected;
   const canStart =
     mode !== "p2e" &&
     walletReady &&
@@ -109,7 +109,7 @@ export function StartMenu({
     <div
       className="relative h-dvh w-full overflow-y-auto overflow-x-hidden"
       style={{
-        background: `radial-gradient(120% 80% at 50% 0%, #3E8BFF14 0%, transparent 45%), linear-gradient(180deg, #04070d 0%, #0a0f18 100%)`,
+        background: `radial-gradient(120% 80% at 50% 0%, #00C80514 0%, transparent 45%), linear-gradient(180deg, #04100a 0%, #0a1d12 100%)`,
         paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))",
       }}
     >
@@ -141,16 +141,16 @@ export function StartMenu({
         </p>
 
         {mode === "p2m" && supply.configured && soldOut ? (
-          <div className="mt-6 rounded-2xl border border-[#3E8BFF]/30 bg-[#3E8BFF]/10 px-4 py-3 text-center">
-            <p className="font-[family-name:var(--font-display)] text-xs tracking-[0.24em] text-[#3E8BFF]">
+          <div className="mt-6 rounded-2xl border border-[#00C805]/30 bg-[#00C805]/10 px-4 py-3 text-center">
+            <p className="font-[family-name:var(--font-display)] text-xs tracking-[0.24em] text-[#00C805]">
               LOOPITERNS MINTED OUT
             </p>
           </div>
         ) : null}
 
         {mode === "p2m" && mintCapReached ? (
-          <div className="mt-6 rounded-2xl border border-[#3E8BFF]/30 bg-[#3E8BFF]/10 px-4 py-3 text-center">
-            <p className="font-[family-name:var(--font-display)] text-xs tracking-[0.24em] text-[#3E8BFF]">
+          <div className="mt-6 rounded-2xl border border-[#00C805]/30 bg-[#00C805]/10 px-4 py-3 text-center">
+            <p className="font-[family-name:var(--font-display)] text-xs tracking-[0.24em] text-[#00C805]">
               MINT LIMIT REACHED — 10/10 LOOPITERNS
             </p>
             <p className="mt-1.5 text-[11px] leading-relaxed text-white/45">
@@ -170,12 +170,12 @@ export function StartMenu({
               onClick={() => click(() => onModeChange("normal"))}
               className={`rounded-2xl border px-4 py-4 text-left transition duration-200 ${
                 mode === "normal"
-                  ? "border-[#3E8BFF]/70 bg-[#3E8BFF]/12"
+                  ? "border-[#00C805]/70 bg-[#00C805]/12"
                   : "border-white/10 bg-black/25 hover:border-white/25 hover:bg-white/5"
               }`}
               style={
                 mode === "normal"
-                  ? { boxShadow: `0 0 32px #3E8BFF33` }
+                  ? { boxShadow: `0 0 32px #00C80533` }
                   : undefined
               }
             >
@@ -197,12 +197,12 @@ export function StartMenu({
               onClick={() => click(() => onModeChange("p2m"))}
               className={`rounded-2xl border px-4 py-4 text-left transition duration-200 ${
                 mode === "p2m"
-                  ? "border-[#3E8BFF]/70 bg-[#3E8BFF]/12"
+                  ? "border-[#00C805]/70 bg-[#00C805]/12"
                   : "border-white/10 bg-black/25 hover:border-white/25 hover:bg-white/5"
               }`}
               style={
                 mode === "p2m"
-                  ? { boxShadow: `0 0 32px #3E8BFF33` }
+                  ? { boxShadow: `0 0 32px #00C80533` }
                   : undefined
               }
             >
@@ -269,7 +269,7 @@ export function StartMenu({
                   THIS HOUR&apos;S WORLD
                 </h2>
                 <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-black/25 px-4 py-3">
-                  <span className="inline-flex items-center gap-2 rounded-full border border-[#3E8BFF]/35 bg-[#3E8BFF]/10 px-3 py-1">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-[#00C805]/35 bg-[#00C805]/10 px-3 py-1">
                     <span
                       className="h-2.5 w-2.5 rounded-full"
                       style={{ background: accent }}
@@ -278,8 +278,8 @@ export function StartMenu({
                       {getTheme(p2mThemeId).name.toUpperCase()}
                     </span>
                   </span>
-                  <span className="ml-auto inline-flex items-center gap-1.5 font-[family-name:var(--font-display)] text-[11px] tracking-[0.12em] text-[#3E8BFF]">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#3E8BFF]" />
+                  <span className="ml-auto inline-flex items-center gap-1.5 font-[family-name:var(--font-display)] text-[11px] tracking-[0.12em] text-[#00C805]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#00C805]" />
                     NEXT IN {formatCountdown(countdownMs)}
                   </span>
                 </div>
@@ -399,7 +399,7 @@ export function StartMenu({
                           onClick={() => click(() => onDifficultyChange(id))}
                           className={`rounded-xl border px-2 py-3 text-center transition duration-200 sm:px-3 ${
                             selected
-                              ? "border-[#3E8BFF]/70 bg-[#3E8BFF]/12 text-white"
+                              ? "border-[#00C805]/70 bg-[#00C805]/12 text-white"
                               : "border-white/10 bg-black/25 text-white/55 hover:border-white/25 hover:text-white/80"
                           }`}
                         >
@@ -428,14 +428,14 @@ export function StartMenu({
                 audio.sfx("start");
                 onStart();
               }}
-              className={`relative min-h-12 w-full overflow-hidden rounded-2xl px-6 py-3.5 font-[family-name:var(--font-display)] text-sm tracking-[0.28em] text-[#061020] transition sm:text-base ${
+              className={`relative min-h-12 w-full overflow-hidden rounded-2xl px-6 py-3.5 font-[family-name:var(--font-display)] text-sm tracking-[0.28em] text-[#04140a] transition sm:text-base ${
                 canStart
                   ? "start-pulse hover:brightness-110 active:scale-[0.99]"
                   : "cursor-not-allowed opacity-50"
               }`}
               style={{
-                background: "linear-gradient(90deg, #3E8BFF, #7CC4FF)",
-                boxShadow: canStart ? "0 0 40px #3E8BFF55" : undefined,
+                background: "linear-gradient(90deg, #00C805, #4ADE80)",
+                boxShadow: canStart ? "0 0 40px #00C80555" : undefined,
               }}
             >
               {mode === "p2e"
@@ -453,7 +453,7 @@ export function StartMenu({
               <ConnectWalletButton size="lg" />
               <p className="text-center text-[11px] text-white/45">
                 {mode === "p2m"
-                  ? "Connect your wallet on Arc to play."
+                  ? "Connect your wallet on Robinhood to play."
                   : "Connect your wallet to play."}
               </p>
             </>

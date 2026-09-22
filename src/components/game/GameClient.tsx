@@ -11,7 +11,7 @@ const GameApp = dynamic(() => import("./GameApp"), {
       <p className="font-[family-name:var(--font-display)] text-xl tracking-[0.28em] text-[#f4ead4]/85">
         LOOPTERNITY
       </p>
-      <p className="mt-2 font-[family-name:var(--font-display)] text-[10px] tracking-[0.32em] text-[#3E8BFF]/80">
+      <p className="mt-2 font-[family-name:var(--font-display)] text-[10px] tracking-[0.32em] text-[#00C805]/80">
         LOOPITERNS
       </p>
     </main>

@@ -16,15 +16,15 @@ import { ConnectWalletButton } from "@/components/web3/ConnectWalletButton";
 import { CHAIN_SWITCH_LABEL } from "@/web3/config";
 import { useWalletSession } from "@/web3/hooks/useWalletSession";
 import {
-  formatMintPriceUsdc,
+  formatMintPriceEth,
   MAX_LOOPITERNS_PER_WALLET,
   useMintLoopitern,
 } from "@/web3/loopiterns";
 import { LoopiternPortrait } from "./LoopiternPortrait";
 import { MuteButton } from "./MuteButton";
 
-const MINT_BLUE = "#3E8BFF";
-const MINT_INK = "#061020";
+const MINT_GREEN = "#00C805";
+const MINT_INK = "#04140a";
 /**
  * Sample tokenIds whose generated stills ship in the repo — cycled in the
  * mint preview so a rarity is never shown as one repeated image. Actual
@@ -108,7 +108,7 @@ function P2mMintBlock({
   runSessionId: string | null;
   runRecord: RunRecord | null;
 }) {
-  const { hasWallet, onArc } = useWalletSession();
+  const { hasWallet, onRobinhood } = useWalletSession();
   // The record's values are the sim's exact score / clock at death — what
   // the server's replay must reproduce within tolerance.
   const claimScore = runRecord?.score ?? score;
@@ -168,7 +168,7 @@ function P2mMintBlock({
     disableReason = "Could not read mint price.";
   } else if (!hasWallet) {
     disableReason = "Connect a wallet to mint.";
-  } else if (!onArc) {
+  } else if (!onRobinhood) {
     disableReason = `Wrong network — tap the button above to switch to ${CHAIN_SWITCH_LABEL}.`;
   } else if (ownedCount >= MAX_LOOPITERNS_PER_WALLET) {
     disableReason = "MINT LIMIT REACHED — 10/10 LOOPITERNS";
@@ -181,7 +181,7 @@ function P2mMintBlock({
   const mintEnabled = disableReason === null && !busy && status !== "success";
 
   return (
-    <div className="mt-4 rounded-xl border border-[#3E8BFF]/40 bg-[#3E8BFF]/10 px-3 py-3 text-left">
+    <div className="mt-4 rounded-xl border border-[#00C805]/40 bg-[#00C805]/10 px-3 py-3 text-left">
       <div className="flex items-center gap-3">
         {willMint || unlocked ? (
           <div className="flex shrink-0 items-center gap-1.5">
@@ -234,7 +234,7 @@ function P2mMintBlock({
       </p>
       {mintPrice !== undefined ? (
         <p className="mt-1 text-[10px] tabular-nums text-white/40">
-          {formatMintPriceUsdc(mintPrice)}
+          {formatMintPriceEth(mintPrice)}
         </p>
       ) : null}
       <div className="mt-3 flex justify-center">
@@ -254,24 +254,24 @@ function P2mMintBlock({
             : "cursor-not-allowed opacity-45"
         }`}
         style={{
-          background: MINT_BLUE,
+          background: MINT_GREEN,
           color: MINT_INK,
         }}
       >
         {mintButtonLabel(status)}
       </button>
       {status === "confirm" ? (
-        <p className="mt-2 text-center text-[10px] leading-relaxed text-[#7CC4FF]">
+        <p className="mt-2 text-center text-[10px] leading-relaxed text-[#4ADE80]">
           Confirm in wallet…
         </p>
       ) : null}
       {status === "pending" ? (
-        <p className="mt-2 text-center text-[10px] leading-relaxed text-[#7CC4FF]">
-          Mint pending on Arc…
+        <p className="mt-2 text-center text-[10px] leading-relaxed text-[#4ADE80]">
+          Mint pending on Robinhood…
         </p>
       ) : null}
       {status === "success" ? (
-        <p className="mt-2 text-center text-[10px] leading-relaxed text-[#7CC4FF]">
+        <p className="mt-2 text-center text-[10px] leading-relaxed text-[#4ADE80]">
           {tokenId !== null ? `Minted #${tokenId.toString()}` : "Minted"}
           {explorerTxUrl ? (
             <>
@@ -280,7 +280,7 @@ function P2mMintBlock({
                 href={explorerTxUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="underline decoration-[#3E8BFF]/70 underline-offset-2 hover:text-white"
+                className="underline decoration-[#00C805]/70 underline-offset-2 hover:text-white"
               >
                 View tx on Blockscout
               </a>
@@ -498,7 +498,7 @@ export function GameHUD({
             </p>
           ) : null}
           {hud.tsunamiReady ? (
-            <p className="mb-1 font-[family-name:var(--font-display)] text-[10px] tracking-[0.18em] text-[#3E8BFF]">
+            <p className="mb-1 font-[family-name:var(--font-display)] text-[10px] tracking-[0.18em] text-[#00C805]">
               {touchControls ? "TSUNAMI READY" : "T · TSUNAMI"}
             </p>
           ) : null}
@@ -529,9 +529,9 @@ export function GameHUD({
             <button
               type="button"
               onClick={onPauseToggle}
-              className="mt-6 min-h-12 w-full rounded-xl px-4 py-3 font-[family-name:var(--font-display)] text-sm tracking-[0.2em] text-[#061020] transition hover:brightness-110"
+              className="mt-6 min-h-12 w-full rounded-xl px-4 py-3 font-[family-name:var(--font-display)] text-sm tracking-[0.2em] text-[#04140a] transition hover:brightness-110"
               style={{
-                background: "linear-gradient(90deg, #3E8BFF, #7CC4FF)",
+                background: "linear-gradient(90deg, #00C805, #4ADE80)",
               }}
             >
               RESUME
@@ -539,7 +539,7 @@ export function GameHUD({
             <button
               type="button"
               onClick={onRestart}
-              className="mt-2 min-h-12 w-full rounded-xl border border-[#3E8BFF]/40 bg-[#3E8BFF]/10 px-4 py-3 font-[family-name:var(--font-display)] text-xs tracking-[0.2em] text-[#7CC4FF] transition hover:bg-[#3E8BFF]/20"
+              className="mt-2 min-h-12 w-full rounded-xl border border-[#00C805]/40 bg-[#00C805]/10 px-4 py-3 font-[family-name:var(--font-display)] text-xs tracking-[0.2em] text-[#4ADE80] transition hover:bg-[#00C805]/20"
             >
               NEW GAME
             </button>
@@ -596,9 +596,9 @@ export function GameHUD({
             <button
               type="button"
               onClick={onRestart}
-              className="mt-6 min-h-12 w-full rounded-xl px-4 py-3 font-[family-name:var(--font-display)] text-sm tracking-[0.2em] text-[#061020] transition hover:brightness-110"
+              className="mt-6 min-h-12 w-full rounded-xl px-4 py-3 font-[family-name:var(--font-display)] text-sm tracking-[0.2em] text-[#04140a] transition hover:brightness-110"
               style={{
-                background: "linear-gradient(90deg, #3E8BFF, #7CC4FF)",
+                background: "linear-gradient(90deg, #00C805, #4ADE80)",
               }}
             >
               RUN AGAIN
@@ -606,7 +606,7 @@ export function GameHUD({
             <button
               type="button"
               onClick={onMenu}
-              className="mt-2 min-h-12 w-full rounded-xl border border-[#3E8BFF]/40 bg-[#3E8BFF]/10 px-4 py-3 font-[family-name:var(--font-display)] text-xs tracking-[0.2em] text-[#7CC4FF] transition hover:bg-[#3E8BFF]/20"
+              className="mt-2 min-h-12 w-full rounded-xl border border-[#00C805]/40 bg-[#00C805]/10 px-4 py-3 font-[family-name:var(--font-display)] text-xs tracking-[0.2em] text-[#4ADE80] transition hover:bg-[#00C805]/20"
             >
               MAIN MENU
             </button>

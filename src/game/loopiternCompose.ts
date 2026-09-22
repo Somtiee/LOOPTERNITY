@@ -6,7 +6,7 @@
  * One implementation of the recolor + sketchbook-shading pipeline, no duplicates.
  *
  * A composed still = the painted base `rarity-{r}.png` with
- *   (a) per-region recolor — the dominant body-blue family remapped to the
+ *   (a) per-region recolor — the dominant body-green family remapped to the
  *       DNA accent tint, the cream/belly family to the DNA belly tint, the
  *       eye pixels to the DNA eye tint (luminance preserved so the painting
  *       still reads as a painting), and
@@ -118,7 +118,7 @@ function hslToRgb(hsl: Hsl): [number, number, number] {
 /* Recolor — color-distance family bucketing on the raw base pixels    */
 /* ------------------------------------------------------------------ */
 
-const BODY_HUE: [number, number] = [195, 255];
+const BODY_HUE: [number, number] = [70, 165];
 const CREAM_HUE: [number, number] = [28, 62];
 const CREAM_MIN_L = 0.35;
 const BG_MAX_L = 0.05;
@@ -159,7 +159,7 @@ export type RecolorTints = { accent: string; belly: string; eye: string };
 
 /**
  * Recolor the base painting. Family bucketing by HSL distance:
- *   body-blue family → accent tint, cream family → belly tint (both keep
+ *   body-green family → accent tint, cream family → belly tint (both keep
  *   the pixel's luminance), dark eye pixels (dark surrounded by cream) →
  *   eye tint, other dark outline pixels follow the accent hue.
  *

@@ -6,8 +6,8 @@ import type { EIP1193Provider } from "viem";
 import { useAccount, useConnect, WagmiProvider } from "wagmi";
 import { RainbowKitProvider, darkTheme } from "@rainbow-me/rainbowkit";
 import "@rainbow-me/rainbowkit/styles.css";
-import { APP_NAME, ARC_CHAIN, walletConnectProjectId } from "./config";
-import { getRabbyProvider } from "./detectedRabbyWallet";
+import { ACTIVE_CHAIN, APP_NAME, walletConnectProjectId } from "./config";
+import { getRabbyProvider, debugInjectedWallets } from "./detectedRabbyWallet";
 import { wagmiConfig } from "./wagmiConfig";
 
 const loopternityTheme = darkTheme({
@@ -98,13 +98,22 @@ export function Web3Providers({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Dev-only handle for debugging multi-wallet profiles, where several
+  // extensions fight over window.ethereum. See debugInjectedWallets().
+  useEffect(() => {
+    if (process.env.NODE_ENV === "production") return;
+    (window as Window & { loopternityDebug?: unknown }).loopternityDebug = {
+      injectedWallets: debugInjectedWallets,
+    };
+  }, []);
+
   return (
     <WagmiProvider config={wagmiConfig} reconnectOnMount={false}>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider
           theme={loopternityTheme}
           modalSize="wide"
-          initialChain={ARC_CHAIN}
+          initialChain={ACTIVE_CHAIN}
           appInfo={{ appName: APP_NAME }}
         >
           <RestoreInjectedWallet />

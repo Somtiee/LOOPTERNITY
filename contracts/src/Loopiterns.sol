@@ -9,11 +9,11 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 /**
  * @title Loopiterns
- * @notice ERC-721 collection for LOOPTERNITY on Circle Arc (testnet 5042002).
+ * @notice ERC-721 collection for LOOPTERNITY on Robinhood Chain mainnet (4663).
  *
- * Arc uses USDC as the native gas token (18 decimals, per docs.arc.io), so
- * `mintPrice` and `msg.value` are native USDC: 0.65 USDC = 0.65e18, and the
- * owner `withdraw` sweeps the contract's native (USDC) balance.
+ * Robinhood Chain's native gas token is ETH (18 decimals), so `mintPrice` and
+ * `msg.value` are native ETH: the deploy price is 0.0004 ETH = 4e14 wei, and
+ * the owner `withdraw` sweeps the contract's native (ETH) balance.
  *
  * v2: public mint() is gone. A client-sent score or timer is spoofable, so
  * the mint is now gated by an off-chain server voucher: `mintWithVoucher`
@@ -220,7 +220,7 @@ contract Loopiterns is ERC721Enumerable, Ownable, Pausable {
         _unpause();
     }
 
-    /// @notice Sweep the full native (USDC on Arc) balance to `to`
+    /// @notice Sweep the full native (ETH on Robinhood) balance to `to`
     ///         (treasury). Reverts on failed transfer.
     function withdraw(address payable to) external onlyOwner {
         uint256 amount = address(this).balance;

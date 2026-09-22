@@ -151,7 +151,7 @@ contract LoopiternsTest is Test {
     Loopiterns internal nft;
     address internal owner = address(0xA11CE);
     address internal alice = address(0xA11);
-    uint256 internal constant PRICE = 0.65 ether; // native USDC (18 dec) on Arc
+    uint256 internal constant PRICE = 0.0004 ether; // 4e14 wei — native ETH on Robinhood
 
     /// @dev Server voucher signer (VOUCHER_SIGNER_PRIVATE_KEY on the app).
     uint256 internal signerPk = 0xC0FFEE;
@@ -237,6 +237,29 @@ contract LoopiternsTest is Test {
         }
         assertEq(sum, nft.MAX_SUPPLY());
         assertEq(sum, 10_000);
+    }
+
+    /// @dev The deploy price is exactly 0.0004 ETH (4e14 wei). Pinned as a
+    ///      literal so a fixture edit can never silently retune what players
+    ///      pay — and so the accepted-value case is explicit, not implied.
+    function testMintPriceIsExactlyFourHundredMicroEther() public view {
+        assertEq(PRICE, 400_000_000_000_000);
+        assertEq(nft.mintPrice(), 400_000_000_000_000);
+    }
+
+    /// @dev MAX_PER_WALLET / MAX_SUPPLY / RARITY_COUNT are `constant` and
+    ///      rarityCap is constructor-set — there is no setter for any of
+    ///      them, so the deployed values can never change. Pinned here so a
+    ///      source edit cannot drift past what was deployed.
+    function testCapLadderConstantsAreFrozen() public view {
+        assertEq(nft.MAX_PER_WALLET(), 10);
+        assertEq(nft.MAX_SUPPLY(), 10_000);
+        assertEq(nft.RARITY_COUNT(), 5);
+        assertEq(nft.rarityCap(0), 5_000);
+        assertEq(nft.rarityCap(1), 2_500);
+        assertEq(nft.rarityCap(2), 1_500);
+        assertEq(nft.rarityCap(3), 800);
+        assertEq(nft.rarityCap(4), 200);
     }
 
     // ------------------------------------------------------------------
@@ -412,8 +435,8 @@ contract LoopiternsTest is Test {
 
     function testOwnerSetMintPrice() public {
         vm.prank(owner);
-        nft.setMintPrice(0.7 ether);
-        assertEq(nft.mintPrice(), 0.7 ether);
+        nft.setMintPrice(0.0007 ether);
+        assertEq(nft.mintPrice(), 0.0007 ether);
 
         (uint256 deadline, uint256 nonce, bytes memory sig) =
             _voucher(signerPk, alice, 1, block.timestamp + 600, _nextNonce());
@@ -422,7 +445,7 @@ contract LoopiternsTest is Test {
         nft.mintWithVoucher{value: PRICE}(1, deadline, nonce, sig);
 
         vm.prank(alice);
-        nft.mintWithVoucher{value: 0.7 ether}(1, deadline, nonce, sig);
+        nft.mintWithVoucher{value: 0.0007 ether}(1, deadline, nonce, sig);
         assertEq(nft.tokenRarity(1), 1);
     }
 

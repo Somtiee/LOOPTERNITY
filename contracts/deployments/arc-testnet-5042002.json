@@ -11,7 +11,8 @@
   "deployBlock": 62058426,
   "rpc": "https://rpc.testnet.arc.io",
   "explorer": "https://testnet.arcscan.app",
-  "status": "DEPLOYED",
+  "status": "RETIRED as the app's live chain 2026-09-22",
+  "retiredNote": "RETIRED 2026-09-22: the app no longer reads this contract. The collection relaunched on Robinhood Chain mainnet (4663) as v3 (0xF1d6AD543a47D84d5C624f80C0F22395BF524175) — see robinhood-4663.json, and do NOT point NEXT_PUBLIC_LOOPITERNS_ADDRESS back at this address. Unlike the Robinhood v2 retirement, this contract was NOT swept and NOT paused: it remains unpaused on-chain with 2 minted (now orphaned) tokens and its native balance intact. Everything below is the dated 2026-09-14 deploy record, kept as history.",
   "statusNote": "Broadcast 2026-09-14 via forge script --broadcast --slow on chain 5042002. Verified on-chain: owner=treasury (0xED638d2de9E7b6E8D06514A161bb2cEFf28bfCDd), mintSigner=0x486eCE21831ffa07661EF745746e2ec47a486222 (same server voucher signer key as the retired Robinhood v2, lives only in gitignored contracts/.env as VOUCHER_SIGNER_PRIVATE_KEY), mintPrice=0.65 native USDC (6.5e17), totalSupply=0, not paused, ~10.2KB runtime code. baseURI deployed EMPTY. Minting is voucher-only: mint() removed, mintWithVoucher(rarity, deadline, nonce, signature) requires an EIP-712 server signature, single-use nonce, 10-minute deadline. MAX_PER_WALLET=10, MAX_SUPPLY=10_000, rarity caps 5000/2500/1500/800/200 with drop-down-never-up. Predecessor: Robinhood Chain (4663) v2 0x0914DcfdE10e5Df2aA1D8C850213712F64852637, RETIRED 2026-09-14 (swept + paused) — see deployments/robinhood-4663.json.",
   "owner": "0xED638d2de9E7b6E8D06514A161bb2cEFf28bfCDd (treasury wallet — also the deployer)",
   "postDeployChecklist": [

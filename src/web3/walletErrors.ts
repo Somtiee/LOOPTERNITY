@@ -1,13 +1,13 @@
-import { CHAIN_LABEL, ARC_CHAIN, WRONG_NETWORK_HINT } from "./config";
+import { ACTIVE_CHAIN, CHAIN_LABEL, WRONG_NETWORK_HINT } from "./config";
 
 export function chainSwitchHint(chainId: number): string {
   if (chainId === 1) {
-    return `Switch to ${CHAIN_LABEL} (${ARC_CHAIN.id}), not Ethereum L1`;
+    return `Switch to ${CHAIN_LABEL} (${ACTIVE_CHAIN.id}), not Ethereum L1`;
   }
   if (chainId === 8453 || chainId === 84532) {
     return `Switch to ${CHAIN_LABEL} — this app is not on Base`;
   }
-  if (chainId !== ARC_CHAIN.id) {
+  if (chainId !== ACTIVE_CHAIN.id) {
     return WRONG_NETWORK_HINT;
   }
   return WRONG_NETWORK_HINT;
@@ -34,9 +34,9 @@ function rawMessage(e: unknown): string {
 }
 
 /**
- * True when the error is a transient network/RPC failure (public Arc RPC
- * dropped, timed out, or rate-limited) — not a chain revert. Such errors
- * are always retryable, and the wallet may still reach Arc through its
+ * True when the error is a transient network/RPC failure (public Robinhood
+ * RPC dropped, timed out, or rate-limited) — not a chain revert. Such errors
+ * are always retryable, and the wallet may still reach Robinhood through its
  * own RPC even when ours cannot.
  */
 export function isReachabilityError(raw: string): boolean {
@@ -63,7 +63,7 @@ export function walletTxError(
     return chainSwitchHint(chainId);
   }
   if (/WalletCap/i.test(raw)) {
-    return "Max 5 LOOPITERNS per wallet";
+    return "Max 10 LOOPITERNS per wallet";
   }
   if (/SoldOut/i.test(raw)) {
     return "Sold out";
@@ -78,7 +78,7 @@ export function walletTxError(
     return "Minting is paused.";
   }
   if (isReachabilityError(raw)) {
-    return "Could not reach Arc. Check your connection and retry.";
+    return "Could not reach Robinhood. Check your connection and retry.";
   }
 
   const trimmed = raw.replace(/^Error:\s*/i, "").trim();

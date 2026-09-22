@@ -1,11 +1,12 @@
 /**
- * Climb-pose preview of every rarity, rendered with the REAL in-game rig
- * (`drawLoopitern`) via @napi-rs/canvas — not a re-implementation, so what
- * you see is what the game draws. Two sprites per rarity:
+ * Climb-pose preview of every runner, rendered with the REAL in-game rigs
+ * (`drawCharacter` + `drawLoopitern`) via @napi-rs/canvas — not a
+ * re-implementation, so what you see is what the game draws.
  *
- *   col 1 — default look (no DNA equipped, pre-J4 palette)
- *   col 2 — a real DNA (schema v3): accent/belly/eye tints + torso mark +
- *           ink tattoo, exactly what a minted token renders with
+ * Rows: ASH, NOVA, NORD, then LOOPITERN Common → Legendary.
+ * Columns: Idle / Climb / Boost, plus a fourth pose — mirrored climb for
+ * the humans, a real DNA palette (schema v3 tints + shading) for the
+ * LOOPITERNS.
  *
  * Output: public/loopiterns/climb-preview.jpg
  * Run: npx tsx scripts/climb-preview.ts
@@ -14,17 +15,20 @@ import { GlobalFonts, createCanvas } from "@napi-rs/canvas";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { drawCharacter } from "../src/game/render/drawCharacter";
 import { drawLoopitern } from "../src/game/render/drawLoopitern";
 import { dnaFromTokenId } from "../src/game/loopiternTraits";
-import { loopiternRigPalette } from "../src/game/loopiternArt";
+import { loopiternRigPalette, LOOPITERN_ACCENT } from "../src/game/loopiternArt";
 import { RARITIES, type LoopiternRarityId } from "../src/game/mintTiers";
+import { CHARACTER_IDS, getCharacter } from "../src/game/characters";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = path.join(__dirname, "..", "public", "loopiterns");
 
-const SCALE = 6; // rig units → preview px
-const CELL_W = 340;
+const SCALE = 5; // rig units → preview px
+const CELL_W = 260;
 const CELL_H = 560;
+const HEADER_H = 64;
 const SPRITE_CY = 430; // rig y=0 (feet baseline) sits here in the cell
 
 // Windows font for labels; the preview still works without it.
@@ -35,7 +39,7 @@ for (const f of [
   "C:/Windows/Fonts/arial.ttf",
 ]) {
   try {
-    fontOK = GlobalFonts.registerFromPath(f, "PreviewFont");
+    fontOK = GlobalFonts.RegisterFromPath(f, "PreviewFont");
     if (fontOK) break;
   } catch {
     // try the next candidate
@@ -51,73 +55,123 @@ function findStyled(rarity: LoopiternRarityId): number {
   return 1;
 }
 
+type Pose = {
+  label: string;
+  facing: 1 | -1;
+  bob: number;
+  vxNorm: number;
+  boosting: boolean;
+};
+
+// cycle = bob * 1.4 = π/2 → stride 0, feet planted: a clean idle stance.
+const IDLE_BOB = Math.PI / 2.8;
+
+function posesFor(kind: "human" | "loopitern"): Pose[] {
+  return [
+    { label: "Idle", facing: 1, bob: IDLE_BOB, vxNorm: 0, boosting: false },
+    { label: "Climb", facing: 1, bob: 2.0, vxNorm: 0.55, boosting: false },
+    { label: "Boost", facing: 1, bob: 3.6, vxNorm: 1, boosting: true },
+    kind === "human"
+      ? { label: "Climb (flip)", facing: -1, bob: 2.6, vxNorm: -0.55, boosting: false }
+      : { label: "Climb + DNA", facing: 1, bob: 2.6, vxNorm: 0.55, boosting: false },
+  ];
+}
+
 async function main() {
-  const rows = RARITIES.length;
-  const canvas = createCanvas(CELL_W * 2, CELL_H * rows);
+  const humanRows = CHARACTER_IDS.map((id) => ({
+    kind: "human" as const,
+    label: getCharacter(id).name.toUpperCase(),
+    id,
+  }));
+  const loopRows = RARITIES.map((r) => {
+    const dnaToken = findStyled(r.id);
+    return {
+      kind: "loopitern" as const,
+      label: `LOOPITERN — ${r.name}`,
+      rarity: r.id,
+      dnaToken,
+      dna: dnaFromTokenId(dnaToken, r.id),
+    };
+  });
+  const rows = [...humanRows, ...loopRows];
+
+  const canvas = createCanvas(CELL_W * 4, HEADER_H + CELL_H * rows.length);
   const ctx = canvas.getContext("2d");
 
-  // Backdrop
-  ctx.fillStyle = "#0b1f12";
+  // Backdrop + grid
+  ctx.fillStyle = "#0b1220";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.strokeStyle = "rgba(200,255,154,0.14)";
+  ctx.strokeStyle = "rgba(191,224,255,0.14)";
   ctx.lineWidth = 2;
-  for (let r = 1; r < rows; r += 1) {
+  for (let r = 0; r <= rows.length; r += 1) {
+    const y = HEADER_H + r * CELL_H;
     ctx.beginPath();
-    ctx.moveTo(0, r * CELL_H);
-    ctx.lineTo(canvas.width, r * CELL_H);
+    ctx.moveTo(0, y);
+    ctx.lineTo(canvas.width, y);
     ctx.stroke();
   }
-  ctx.beginPath();
-  ctx.moveTo(CELL_W, 0);
-  ctx.lineTo(CELL_W, canvas.height);
-  ctx.stroke();
+  for (let c = 1; c < 4; c += 1) {
+    ctx.beginPath();
+    ctx.moveTo(c * CELL_W, 0);
+    ctx.lineTo(c * CELL_W, canvas.height);
+    ctx.stroke();
+  }
 
-  RARITIES.forEach((r, row) => {
-    const dna = dnaFromTokenId(findStyled(r.id), r.id);
-    const cols: Array<{ label: string; palette?: ReturnType<typeof loopiternRigPalette> }> = [
-      { label: `${r.name} — default` },
-      {
-        label: `${r.name} — DNA #${dna.tokenId}`,
-        palette: loopiternRigPalette(dna),
-      },
-    ];
+  // Header — pose column labels
+  if (fontOK) {
+    ctx.fillStyle = "#c8e4ff";
+    ctx.font = "600 22px PreviewFont";
+    ctx.textAlign = "center";
+    ["Idle", "Climb", "Boost", "Flip / DNA"].forEach((label, c) => {
+      ctx.fillText(label, c * CELL_W + CELL_W / 2, 40);
+    });
+  }
 
-    cols.forEach((col, c) => {
-      const x0 = c * CELL_W;
-      const y0 = row * CELL_H;
+  rows.forEach((row, r) => {
+    const y0 = HEADER_H + r * CELL_H;
 
-      // Label
-      if (fontOK) {
-        ctx.fillStyle = "#c8ff9a";
-        ctx.font = "600 24px PreviewFont";
-        ctx.textAlign = "center";
-        ctx.fillText(col.label, x0 + CELL_W / 2, y0 + 46);
-        if (col.palette) {
-          ctx.fillStyle = "rgba(244,234,212,0.75)";
-          ctx.font = "16px PreviewFont";
-          const parts = [
-            `shading: ${dna.shadingStyle}`,
-            `${dna.shadingWeight} / ${dna.shadingTone}`,
-            `accent: ${dna.accentTint}`,
-          ];
-          parts.forEach((p, i) => {
-            ctx.fillText(p, x0 + CELL_W / 2, y0 + 78 + i * 22);
-          });
-        }
+    if (fontOK) {
+      ctx.fillStyle = "#c8e4ff";
+      ctx.font = "600 22px PreviewFont";
+      ctx.textAlign = "left";
+      ctx.fillText(row.label, 14, y0 + 36);
+      if (row.kind === "loopitern") {
+        ctx.fillStyle = "rgba(244,234,212,0.75)";
+        ctx.font = "15px PreviewFont";
+        ctx.fillText(
+          `DNA #${row.dnaToken} — shading ${row.dna.shadingStyle} / ${row.dna.shadingWeight}`,
+          14,
+          y0 + 60,
+        );
       }
+    }
 
-      // The real rig, mid-climb: leaning into the wall, mid-stride.
+    posesFor(row.kind).forEach((pose, c) => {
       ctx.save();
-      ctx.translate(x0 + CELL_W / 2, y0 + SPRITE_CY);
+      ctx.translate(c * CELL_W + CELL_W / 2, y0 + SPRITE_CY);
       ctx.scale(SCALE, SCALE);
-      drawLoopitern(ctx, {
-        rarity: r.id,
-        facing: 1,
-        bob: 2.0,
-        vxNorm: 0.55,
-        boosting: false,
-        palette: col.palette,
-      });
+      if (row.kind === "human") {
+        drawCharacter(ctx, {
+          look: getCharacter(row.id),
+          facing: pose.facing,
+          bob: pose.bob,
+          vxNorm: pose.vxNorm,
+          boosting: pose.boosting,
+          accent: LOOPITERN_ACCENT,
+        });
+      } else {
+        drawLoopitern(ctx, {
+          rarity: row.rarity,
+          facing: pose.facing,
+          bob: pose.bob,
+          vxNorm: pose.vxNorm,
+          boosting: pose.boosting,
+          palette:
+            pose.label === "Climb + DNA"
+              ? loopiternRigPalette(row.dna)
+              : undefined,
+        });
+      }
       ctx.restore();
     });
   });

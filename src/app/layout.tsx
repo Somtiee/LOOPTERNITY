@@ -27,7 +27,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
-  themeColor: "#05070f",
+  themeColor: "#04100a",
 };
 
 export default function RootLayout({
@@ -37,7 +37,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${display.variable} ${sans.variable} h-full`}>
-      <body className="min-h-dvh overflow-hidden bg-[#05070f] font-sans text-slate-100 antialiased">
+      <body className="min-h-dvh overflow-hidden bg-[#04100a] font-sans text-slate-100 antialiased">
         <Web3Providers>{children}</Web3Providers>
       </body>
     </html>

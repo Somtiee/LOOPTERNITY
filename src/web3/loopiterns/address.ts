@@ -1,8 +1,8 @@
 import { getAddress, isAddress, zeroAddress, type Address } from "viem";
 
 /**
- * LOOPITERNS on Arc testnet (5042002). Empty / zero address = mint disabled.
- * Set `NEXT_PUBLIC_LOOPITERNS_ADDRESS` after deploy.
+ * LOOPITERNS on Robinhood Chain mainnet (4663). Empty / zero address = mint
+ * disabled. Set `NEXT_PUBLIC_LOOPITERNS_ADDRESS` after deploy.
  */
 export function getLoopiternsAddress(): Address | undefined {
   const raw = process.env.NEXT_PUBLIC_LOOPITERNS_ADDRESS?.trim();

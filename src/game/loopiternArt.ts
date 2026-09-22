@@ -11,8 +11,8 @@ import {
   type LoopiternDna,
 } from "./loopiternTraits";
 
-/** Arc-blue brand accent — the collection's dominant body family. */
-export const LOOPITERN_ACCENT = "#3E8BFF";
+/** Robinhood-green brand accent — the collection's dominant body family. */
+export const LOOPITERN_ACCENT = "#00C805";
 export const LOOPITERN_INK = "#050d14";
 export const LOOPITERN_CREAM = "#f4ead4";
 
@@ -24,11 +24,11 @@ export const LOOPITERN_BODY: Record<
   LoopiternRarityId,
   { fill: string; belly: string; trim: string }
 > = {
-  0: { fill: "#2E63D6", belly: "#6FA3EA", trim: "#c8defa" },
-  1: { fill: "#3E8BFF", belly: "#7CC4FF", trim: "#f4ead4" },
-  2: { fill: "#62A8FF", belly: "#a8e2ff", trim: "#e8f4ff" },
-  3: { fill: "#3484F5", belly: "#f4ead4", trim: "#c8e0ff" },
-  4: { fill: "#3E8BFF", belly: "#c8e4ff", trim: "#f2f8ff" },
+  0: { fill: "#0E8A3E", belly: "#5FC98A", trim: "#c8f0d6" },
+  1: { fill: "#00C805", belly: "#4ADE80", trim: "#f4ead4" },
+  2: { fill: "#4ADE80", belly: "#A7F3C4", trim: "#e6f7ec" },
+  3: { fill: "#22C55E", belly: "#f4ead4", trim: "#D6F5DE" },
+  4: { fill: "#00C805", belly: "#D6F5DE", trim: "#F2FBF5" },
 };
 
 /** One palette source for UI previews and the in-game climb rig (J4). */

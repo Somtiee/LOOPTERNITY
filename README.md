@@ -1,15 +1,15 @@
 # LOOPTERNITY
 
-A 2D vertical endless survival climber that lives on **Circle Arc testnet** (chain id 5042002). You climb forever while a deadly force rises from below — dodge, boost, manage shields, survive as long as you can. It's also home of the **LOOPITERNS**, a 10,000-piece ERC-721 collection you mint by playing: score high enough in Play-to-Mint mode and you unlock a mint, then equip your LOOPITERN in Normal mode for real gameplay traits. Arc blue (`#3E8BFF`) runs through everything — the UI, the rarity accents, the marketplaces.
+A 2D vertical endless survival climber that lives on **Robinhood Chain mainnet** (chain id 4663). You climb forever while a deadly force rises from below — dodge, boost, manage shields, survive as long as you can. It's also home of the **LOOPITERNS**, a 10,000-piece ERC-721 collection you mint by playing: score high enough in Play-to-Mint mode and you unlock a mint, then equip your LOOPITERN in Normal mode for real gameplay traits. Robinhood green (`#00C805`) runs through everything — the UI, the rarity accents, the marketplaces.
 
-Arc's native gas token is **USDC** (18 decimals) — the same token the mint price is paid in. Wallets without custom-gas-token support may display it as "ETH"; it is USDC.
+The chain's native gas token is **ETH** (18 decimals) — the same token the mint price is paid in.
 
 ## Playing
 
 Three modes from the start menu:
 
 - **Normal (free)** — pick a world theme and Easy / Medium / Hard. Personal bests save locally, and sync to your wallet address if you connect one. Minted LOOPITERNS can be equipped here for gameplay traits.
-- **P2M — Play-to-Mint** — the same climb at a locked Medium difficulty. The rarity gates are **score** thresholds (SCORE 15,000 for Common up to SCORE 60,000 for Legendary), not survival timers. Reach a gate, then pay the on-chain mint price (**0.65 USDC** per LOOPITERN) to mint. P2M requires a wallet connected and on Arc testnet before START unlocks — the mint lives on that chain.
+- **P2M — Play-to-Mint** — the same climb at a locked Medium difficulty. The rarity gates are **score** thresholds (SCORE 15,000 for Common up to SCORE 60,000 for Legendary), not survival timers. Reach a gate, then pay the on-chain mint price (**0.0004 ETH** per LOOPITERN) to mint. P2M requires a wallet connected and on Robinhood Chain before START unlocks — the mint lives on that chain.
 - **P2E — Coming Soon** — disabled. No leaderboards, no prize payouts, nothing promised yet.
 
 ### Controls
@@ -27,7 +27,7 @@ Base runners **ASH / NOVA / NORD** are looks-only and always available without a
 
 ## The LOOPITERN collection
 
-10,000 ERC-721 tokens on Arc testnet, mint price **0.65 native USDC** (= `0.65e18`, set at deploy; the owner can adjust via `setMintPrice`), hard cap of **10 per wallet**.
+10,000 ERC-721 tokens on Robinhood Chain, mint price **0.0004 ETH** (= `400000000000000` wei, set at deploy; the owner can adjust via `setMintPrice`), hard cap of **10 per wallet**.
 
 ### Art: 5 painted bases, not 10,000 paintings
 
@@ -58,7 +58,7 @@ The gates were raised by hand on 2026-09-15 (from the auto-calibrated 9,500→47
 ## Minting
 
 - **Voucher-only:** there is no public `mint()`. `mintWithVoucher` requires a server-signed EIP-712 voucher bound to (minter, rarity, deadline, single-use nonce, chain, contract). The server only signs after re-running your recorded run through the identical deterministic sim and confirming it genuinely reached the rarity's score gate — see `/api/loopitern/voucher`.
-- **Price:** exactly `mintPrice` (currently 0.65 native USDC = `0.65e18`) — the contract reverts on any other value sent.
+- **Price:** exactly `mintPrice` (currently 0.0004 ETH = `400000000000000` wei) — the contract reverts on any other value sent.
 - **Wallet cap:** max 10 mints per wallet. The cap is mint-only: buying LOOPITERNS later on a secondary market is **not** capped, and everything you own shows in your in-game inventory (paginated, with Load More).
 - **Drop-down:** request a rarity that's sold out and you get the next lower rarity with supply — the contract never mints above what you unlocked.
 
@@ -66,50 +66,54 @@ The gates were raised by hand on 2026-09-15 (from the auto-calibrated 9,500→47
 
 ## Deploy status
 
-**Deployed and live on Circle Arc TESTNET (5042002).** RPC `https://rpc.testnet.arc.io`, explorer `https://testnet.arcscan.app`. Minting is **voucher-only**: the v2 contract has no public `mint()` — `mintWithVoucher` requires a server-signed EIP-712 voucher (see Minting below). This is a testnet deployment — testnet USDC has no value, and when Arc mainnet launches the contract is redeployed there (runbook in `docs/vercel-env.txt`).
+**Deployed and live on Robinhood Chain mainnet (4663).** RPC `https://rpc.mainnet.chain.robinhood.com`, explorer `https://robinhoodchain.blockscout.com`. Minting is **voucher-only**: the contract has no public `mint()` — `mintWithVoucher` requires a server-signed EIP-712 voucher (see Minting below).
 
 | | |
 | --- | --- |
-| Contract (v2, live) | [`0x991Ad2Bb19e57fB427250ec9AEEd312e60d21990`](https://testnet.arcscan.app/address/0x991Ad2Bb19e57fB427250ec9AEEd312e60d21990) |
+| Contract (v3, live) | [`0xF1d6AD543a47D84d5C624f80C0F22395BF524175`](https://robinhoodchain.blockscout.com/address/0xF1d6AD543a47D84d5C624f80C0F22395BF524175) |
 | Name / symbol | LOOPITERNS / LOOP |
-| Deploy tx | [`0xa36f388ea801beb90866040314ac2a50b06d013fa9d37cc9fa2e3034d824bc3f`](https://testnet.arcscan.app/tx/0xa36f388ea801beb90866040314ac2a50b06d013fa9d37cc9fa2e3034d824bc3f) (block 62,058,426, 2026-09-14) |
+| Deploy tx | [`0x32ce6fc345dfd4230c896d3a5691987293fbef9e0de6c3140692e7df596248db`](https://robinhoodchain.blockscout.com/tx/0x32ce6fc345dfd4230c896d3a5691987293fbef9e0de6c3140692e7df596248db) (block 69,556,981, 2026-09-22) |
 | Owner / treasury | `0xED638d2de9E7b6E8D06514A161bb2cEFf28bfCDd` |
-| Voucher signer | `0x486eCE21831ffa07661EF745746e2ec47a486222` (same server key as the retired Robinhood v2; no funds) |
-| Mint price | 0.65 native USDC (owner-adjustable via `setMintPrice`) |
+| Voucher signer | `0x486eCE21831ffa07661EF745746e2ec47a486222` (the same server key as every prior deploy; signs only, holds no funds) |
+| Mint price | 0.0004 ETH (`400000000000000` wei; owner-adjustable via `setMintPrice`) |
 | Minted at time of writing | 0 of 10,000 (fresh deploy) |
 | baseURI | **empty** — must be set after deploy (see below) |
-| Multicall3 | confirmed at the canonical `0xcA11bde05977b3631167028862bE2a173976CA11` on 5042002 (`eth_getCode`) — batched inventory reads work |
-| Source verification | still a TODO — try the explorer's web UI on [testnet.arcscan.app](https://testnet.arcscan.app) (Contract → Verify & Publish, solc 0.8.29, optimizer on, 200 runs); `forge verify-contract` support for Arc is unconfirmed |
+| Multicall3 | confirmed at the canonical `0xcA11bde05977b3631167028862bE2a173976CA11` on 4663 (`eth_getCode`, 2026-09-22) — batched inventory reads work |
+| Source verification | still a TODO — use the explorer's web UI on [robinhoodchain.blockscout.com](https://robinhoodchain.blockscout.com) (Contract → Verify & Publish, solc 0.8.29, optimizer on, 200 runs); its API is Cloudflare-gated, so `forge verify-contract` cannot reach it programmatically |
 
-The deployment record lives in `contracts/deployments/arc-testnet-5042002.json`. If `NEXT_PUBLIC_LOOPITERNS_ADDRESS` is empty or zero, the mint UI honestly shows a "minting not live" state instead of pretending.
+The deployment record lives in `contracts/deployments/robinhood-4663.json` — the `v3` block is the live contract; the top-level fields describe the retired v2. If `NEXT_PUBLIC_LOOPITERNS_ADDRESS` is empty or zero, the mint UI honestly shows a "minting not live" state instead of pretending.
 
-> **Retired chains (history only):** the previous deployment on Robinhood Chain (4663), contract `0x0914DcfdE10e5Df2aA1D8C850213712F64852637`, was **swept, paused, and retired on 2026-09-14** — its address, sweep and pause transactions are preserved in `contracts/deployments/robinhood-4663.json`. Before that, a v1 contract (`0x7016CfF42264C8D499a32bBe2b5A039bfd0Ed19f`) on the same chain was withdrawn and paused on 2026-09-03; its 3 minted tokens remain on-chain but were never read again. The app reads only the live Arc testnet contract.
+> **Retired chains (history only).** No other chain is live for this project — there is no Inco integration and no Base deployment in the app, and Arc is not the live chain.
+>
+> - **Arc testnet (5042002)** — `0x991Ad2Bb19e57fB427250ec9AEEd312e60d21990`. Retired as the app's live chain on 2026-09-22 when the collection relaunched on Robinhood Chain; it is still unpaused on-chain with 2 minted tokens. The app no longer reads it, so those tokens do not appear in inventory. Record: `contracts/deployments/arc-testnet-5042002.json`.
+> - **Robinhood Chain v2 (4663)** — `0x0914DcfdE10e5Df2aA1D8C850213712F64852637`, **swept, paused, and retired on 2026-09-14**. Its address, sweep and pause transactions are preserved in `contracts/deployments/robinhood-4663.json`; its 5 minted tokens are orphaned.
+> - **Robinhood Chain v1 (4663)** — `0x7016CfF42264C8D499a32bBe2b5A039bfd0Ed19f`, withdrawn and paused on 2026-09-03; its 3 minted tokens remain on-chain but were never read again.
 
 ### Deploy command (for the record / future contract)
 
 ```bash
 cd contracts
 forge script script/DeployLoopiterns.s.sol:DeployLoopiterns \
-  --rpc-url arctestnet --chain 5042002 --broadcast --slow
+  --rpc-url robinhood --chain 4663 --broadcast --slow
 ```
 
 Env vars (read from the environment by the script, or `contracts/.env`):
 
 - `PRIVATE_KEY` — deployer key; becomes the contract owner (treasury).
-- `MINT_PRICE_WEI` — e.g. `650000000000000000` for 0.65 native USDC.
+- `MINT_PRICE_WEI` — e.g. `400000000000000` for 0.0004 ETH.
 
 The script always deploys with an empty `baseURI` — set it afterwards with `setBaseURI`.
 
 App-side env (see `.env.example` and `docs/vercel-env.txt`):
 
 - `NEXT_PUBLIC_LOOPITERNS_ADDRESS` — the deployed address; empty/zero = mint disabled.
-- `NEXT_PUBLIC_LOOPITERNS_MINT_PRICE_WEI` — optional fallback if `mintPrice()` can't be read (native-USDC units, e.g. `650000000000000000`).
+- `NEXT_PUBLIC_LOOPITERNS_MINT_PRICE_WEI` — optional fallback if `mintPrice()` can't be read (wei, e.g. `400000000000000`).
 - `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` — optional; enables WalletConnect/mobile wallets.
-- `NEXT_PUBLIC_RPC_URL` — optional **fallback** RPC used only when the public Arc RPC fails (e.g. a restrict-to-Arc Alchemy URL; browser-visible, so use a scoped key, never an admin key).
+- `NEXT_PUBLIC_RPC_URL` — optional **fallback** RPC used only when the public Robinhood Chain RPC fails (e.g. a chain-restricted Alchemy URL; browser-visible, so use a scoped key, never an admin key).
 
 ## Treasury: how to withdraw
 
-The contract accumulates mint USDC (native). The **owner-only** `withdraw(to)` sweeps the *full* native balance to an address, reverting (`WithdrawFailed`) if the transfer is rejected, and emits `Withdrawn(to, amount)`. Verified in tests (`forge test` → withdraw suite, 30/30 passing).
+The contract accumulates mint ETH (native). The **owner-only** `withdraw(to)` sweeps the *full* native balance to an address, reverting (`WithdrawFailed`) if the transfer is rejected, and emits `Withdrawn(to, amount)`. Verified in tests (`forge test` → withdraw suite, 32/32 passing).
 
 From `contracts/`, with the treasury key (`0xED638d…bfCDd` — the deployer/owner) in `contracts/.env` as `PRIVATE_KEY`:
 
@@ -122,9 +126,9 @@ powershell -ExecutionPolicy Bypass -File .\check-pot.ps1
 Raw cast equivalent:
 
 ```bash
-cast send 0x991Ad2Bb19e57fB427250ec9AEEd312e60d21990 \
+cast send 0xF1d6AD543a47D84d5C624f80C0F22395BF524175 \
   "withdraw(address)" 0xED638d2de9E7b6E8D06514A161bb2cEFf28bfCDd \
-  --rpc-url https://rpc.testnet.arc.io \
+  --rpc-url https://rpc.mainnet.chain.robinhood.com \
   --private-key <TREASURY_PRIVATE_KEY>
 ```
 
@@ -135,9 +139,9 @@ cast send 0x991Ad2Bb19e57fB427250ec9AEEd312e60d21990 \
 Because the deployed `baseURI` is still **empty**, marketplaces cannot resolve token metadata yet. After the production domain is live, the treasury owner must run:
 
 ```bash
-cast send 0x991Ad2Bb19e57fB427250ec9AEEd312e60d21990 \
+cast send 0xF1d6AD543a47D84d5C624f80C0F22395BF524175 \
   "setBaseURI(string)" "https://<PRODUCTION-DOMAIN>/api/loopitern/token/" \
-  --rpc-url https://rpc.testnet.arc.io \
+  --rpc-url https://rpc.mainnet.chain.robinhood.com \
   --private-key <TREASURY_PRIVATE_KEY>
 ```
 
@@ -158,7 +162,7 @@ Contract (`contracts/`, Foundry):
 ```bash
 cd contracts
 forge build
-forge test                   # 30 tests, incl. voucher forge/replay/expiry + withdraw suite + cap-10 at 0.65e18
+forge test                   # 32 tests, incl. voucher forge/replay/expiry + withdraw suite + cap-10 at 0.0004 ETH
 ```
 
 LOOPITERN art & DNA tooling (all deterministic, safe to re-run):
@@ -171,8 +175,8 @@ npx tsx scripts/uniqueness-analysis.ts        # DNA collision analysis across th
 npx tsx scripts/climb-preview.ts              # in-game climb-rig preview image
 ```
 
-Architecture at a glance: `src/game/` is the pure Canvas 2D engine (no chain code), `src/web3/` is the wagmi/RainbowKit/viem shell targeting Arc testnet, `src/components/game/` is menu/HUD/pad UI, `src/app/api/loopitern/` serves metadata & stills, `contracts/` is the LOOPITERNS Foundry project.
+Architecture at a glance: `src/game/` is the pure Canvas 2D engine (no chain code), `src/web3/` is the wagmi/RainbowKit/viem shell targeting Robinhood Chain, `src/components/game/` is menu/HUD/pad UI, `src/app/api/loopitern/` serves metadata & stills, `contracts/` is the LOOPITERNS Foundry project.
 
 ## Roadmap
 
-- **P2E — Coming Soon.** That's the entire roadmap: no verified scores, no leaderboards, no payout promises, nothing else committed. The old Inco / Base P2E vault path has been fully removed from the client and is not coming back in that form.
+- **P2E — Coming Soon.** That's the entire roadmap: no verified scores, no leaderboards, no payout promises, nothing else committed. The old Inco / Base P2E vault path has been fully removed from the client and is not coming back in that form, and no chain other than Robinhood (4663) is live for this project.

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
-import { ARC_CHAIN } from "@/web3/config";
+import { ACTIVE_CHAIN } from "@/web3/config";
 
 const RESTORE_MS = 1500;
 
@@ -29,7 +29,7 @@ export function useWalletSession() {
 
   const restoring = reconnecting && !restoreExpired;
   const hasWallet = Boolean(address);
-  const onArc = hasWallet && chainId === ARC_CHAIN.id;
+  const onRobinhood = hasWallet && chainId === ACTIVE_CHAIN.id;
 
   return {
     address,
@@ -37,7 +37,12 @@ export function useWalletSession() {
     status,
     restoring,
     hasWallet,
-    onArc,
+    onRobinhood,
+    /**
+     * @deprecated Arc-era name for `onRobinhood`, kept so callers that still
+     * destructure `onArc` behave identically. Migrate to `onRobinhood`.
+     */
+    onArc: onRobinhood,
     isConnected: hasWallet && status !== "disconnected",
     isReconnecting,
     isConnecting,

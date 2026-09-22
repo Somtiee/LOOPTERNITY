@@ -2,6 +2,7 @@
   "network": "robinhood",
   "chainId": 4663,
   "contract": "Loopiterns",
+  "liveVersion": "v3 — see the \"v3\" block below. The top-level address/version/mintPriceWei/status fields beneath this line describe the RETIRED v2 and are kept as history; they are not the live contract. Only v1 is a separate top-level entry further down.",
   "version": "2 (voucher-gated mint)",
   "address": "0x0914DcfdE10e5Df2aA1D8C850213712F64852637",
   "mintPriceWei": "200000000000000",
@@ -20,6 +21,41 @@
       "pause": "0xebb66957d1290b028b0c96d6cf990824f7c51008aaa68c0a3f1777450a7fe2a1 (block 62700529)"
     },
     "totalSupplyAtRetire": 5
+  },
+  "v2Retired": {
+    "recordedOn": "2026-09-22 (date this confirmation was written, not a transaction date)",
+    "confirmation": "v2 0x0914DcfdE10e5Df2aA1D8C850213712F64852637 stays RETIRED permanently. It was never unpaused for the live collection: MAX_PER_WALLET is a compile-time constant = 5 inlined into bytecode (git d2b4d93:contracts/src/Loopiterns.sol:29), with no setter and no proxy, so this contract can never serve the locked cap-10 collection. It remains swept (0 native balance) and paused (tx 0xebb66957d1290b028b0c96d6cf990824f7c51008aaa68c0a3f1777450a7fe2a1). No unpause, no setMintPrice, and no new transaction of any kind was broadcast for this confirmation — it is bookkeeping only.",
+    "orphanedTokens": {
+      "count": 5,
+      "note": "The 5 tokens minted at the v2 address are orphaned. The app does not read this address, so they must NOT appear in inventory — same treatment as the 3 orphaned v1 tokens above. They remain visible only on-chain at the explorer."
+    }
+  },
+  "v3": {
+    "version": "3 (voucher-gated mint, Robinhood Chain mainnet relaunch)",
+    "address": "0xF1d6AD543a47D84d5C624f80C0F22395BF524175",
+    "mintPriceWei": "400000000000000",
+    "mintPriceNote": "0.0004 ETH per mint. Owner can adjust via setMintPrice.",
+    "deployer": "0xED638d2de9E7b6E8D06514A161bb2cEFf28bfCDd",
+    "deployTxHash": "0x32ce6fc345dfd4230c896d3a5691987293fbef9e0de6c3140692e7df596248db",
+    "deployBlock": 69556981,
+    "deployBlockHash": "0x1a802cf56f9385cc7c46d26ed25b647c416548dace64768ac2873ada4a10b3a4",
+    "deployGasUsed": "2541573",
+    "effectiveGasPriceWei": "51846000",
+    "rpc": "https://rpc.mainnet.chain.robinhood.com",
+    "explorer": "https://robinhoodchain.blockscout.com/address/0xF1d6AD543a47D84d5C624f80C0F22395BF524175",
+    "status": "DEPLOYED",
+    "owner": "0xED638d2de9E7b6E8D06514A161bb2cEFf28bfCDd (treasury wallet — also the deployer)",
+    "mintSigner": "0x486eCE21831ffa07661EF745746e2ec47a486222",
+    "runtimeCodeBytes": 10382,
+    "statusNote": "Broadcast 2026-09-22 via: forge script script/DeployLoopiterns.s.sol:DeployLoopiterns --rpc-url robinhood --chain 4663 --broadcast --slow. Real transaction, real receipt: status 1, block 69556981, gasUsed 2541573, effectiveGasPrice 51846000 wei (~0.0001318 ETH), logs[0] = OwnershipTransferred(0x0 -> 0xED638d2de9E7b6E8D06514A161bb2cEFf28bfCDd). Constructor args decoded from the broadcast calldata: mintPrice=400000000000000 (0.0004 ETH), baseURI=\"\" (empty), owner=0xED638d2de9E7b6E8D06514A161bb2cEFf28bfCDd, mintSigner=0x486eCE21831ffa07661EF745746e2ec47a486222. Verified on-chain afterwards with cast (each result verbatim): owner() = 0xED638d2de9E7b6E8D06514A161bb2cEFf28bfCDd; mintSigner() = 0x486eCE21831ffa07661EF745746e2ec47a486222 (equals the required server voucher signer); mintPrice() = 400000000000000 [4e14]; MAX_PER_WALLET() = 10; MAX_SUPPLY() = 10000 [1e4]; paused() = false; totalSupply() = 0. Runtime bytecode = 10382 bytes. PREFLIGHT: contracts/.env carried a stale MINT_PRICE_WEI=650000000000000000 (0.65 ETH, 1625x the intended price); it was corrected to 400000000000000 BEFORE broadcasting and the dry run then showed constructor arg0 = 400000000000000. Every other line of contracts/.env was verified byte-identical (hash of all non-MINT_PRICE_WEI lines unchanged). WARNING - ONE EXPECTED CHECK FAILED: raritiesOf(uint256[]) is NOT absent from the deployed bytecode. Its selector 0x8bff1fcc occurs in the runtime code, and a live probe dispatches: raritiesOf([1]) reverts with ERC721NonexistentToken (0x7e273289...) whereas an unknown selector (0xdeadbeef) reverts with empty data (\"0x\"), which is only possible if the function is in the dispatcher. Cause is the source, not the build: raritiesOf is declared `external view` at contracts/src/Loopiterns.sol:115, so any build of this source ships it. The claim at docs/launch.md:92 that raritiesOf() is not in the live bytecode is therefore FALSE for this deployment and must be reworded. It is a batched view getter: it cannot mint, cannot change price, and cannot bypass any cap, but it IS callable by anyone. The app ABI (src/web3/loopiterns/abi.ts) omits it, so no UI code calls it. The retired v2 0x0914DcfdE10e5Df2aA1D8C850213712F64852637 was NOT unpaused and NOT reconfigured - no transaction of any kind was sent to it during this deploy.",
+    "postDeployChecklist": [
+      "TODO: set NEXT_PUBLIC_LOOPITERNS_ADDRESS=0xF1d6AD543a47D84d5C624f80C0F22395BF524175 in the Vercel project env (and .env.local for local dev).",
+      "TODO: verify source on https://robinhoodchain.blockscout.com - the API is Cloudflare-gated so forge verify-contract cannot reach it programmatically; use the explorer web UI (Contract > Verify & Publish, solc 0.8.29, optimizer on).",
+      "TODO: confirm the app server's VOUCHER_SIGNER_PRIVATE_KEY address equals the on-chain mintSigner 0x486eCE21831ffa07661EF745746e2ec47a486222, or vouchers will be rejected.",
+      "TODO: reword docs/launch.md:92 - raritiesOf() IS in the live bytecode (see statusNote).",
+      "TODO: fund the voucher signer for gas if it ever needs to send a transaction (it only signs today).",
+      "Treasury sweep: withdraw(to) onlyOwner, same as v1/v2."
+    ]
   },
   "owner": "0xED638d2de9E7b6E8D06514A161bb2cEFf28bfCDd (treasury wallet — also the deployer)",
   "v1": {
