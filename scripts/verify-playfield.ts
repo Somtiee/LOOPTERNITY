@@ -19,6 +19,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { ACTIVE_CHAIN_ID } from "../src/web3/config";
+import { VIEW_SCALE } from "../src/game/constants";
 
 const BASE = process.env.E2E_BASE_URL ?? "http://localhost:3000";
 const SHOTS = join(tmpdir(), "loopternity-verify");
@@ -50,6 +51,7 @@ type Measure = {
   canvas: { x: number; y: number; w: number; h: number };
   backing: { w: number; h: number };
   viewport: { w: number; h: number };
+  dpr: number;
 };
 
 async function measure(page: import("playwright").Page): Promise<Measure> {
@@ -63,6 +65,7 @@ async function measure(page: import("playwright").Page): Promise<Measure> {
       canvas: { x: cr.x, y: cr.y, w: cr.width, h: cr.height },
       backing: { w: canvas.width, h: canvas.height },
       viewport: { w: window.innerWidth, h: window.innerHeight },
+      dpr: window.devicePixelRatio || 1,
     };
   });
 }
@@ -147,12 +150,31 @@ async function scenario(
     `NEW keeps the sim dims (backing ${before.backing.w}×${before.backing.h} → ${after.backing.w}×${after.backing.h})`,
   );
 
-  // --- responsive sizing (viewport-derived, not a fixed square) ---
-  check(
-    approx(before.backing.w, before.canvas.w) &&
-      approx(before.backing.h, before.canvas.h),
-    "backing store matches the rendered size (viewport-derived sim dims)",
+  // --- fairness band: browser zoom must not change how much world you see ---
+  // The view dims decide how much world is visible. They come from a CSS-pixel
+  // viewport, which zoom rescales, so they are clamped into VIEW_SCALE — a
+  // zoomed-out player must not be able to see past maxWidth/maxHeight.
+  const simW = before.backing.w / before.dpr;
+  const simH = before.backing.h / before.dpr;
+  console.log(
+    `  field: ${Math.round(simW)}×${Math.round(simH)} sim units (band ${VIEW_SCALE.minWidth}-${VIEW_SCALE.maxWidth} × ${VIEW_SCALE.minHeight}-${VIEW_SCALE.maxHeight})`,
   );
+  check(
+    simW >= VIEW_SCALE.minWidth &&
+      simW <= VIEW_SCALE.maxWidth &&
+      simH >= VIEW_SCALE.minHeight &&
+      simH <= VIEW_SCALE.maxHeight,
+    `field stays inside the ${VIEW_SCALE.min}–${VIEW_SCALE.max} band of the designed world`,
+  );
+  // The floor can exceed a narrow canvas (a 390px-wide phone against a 432
+  // floor), in which case the world renders at a slight downscale. That is
+  // intentional — the band wins over the 1:1 backing/rendered match — so this
+  // is reported, not asserted.
+  if (simW > before.canvas.w + 1) {
+    console.log(
+      `  note: field is wider than the canvas, world renders at ${(before.canvas.w / simW).toFixed(3)}× (band floor)`,
+    );
+  }
   if (viewport.width < viewport.height) {
     check(
       approx(before.canvas.w, before.viewport.w, 2),
@@ -175,13 +197,31 @@ async function scenario(
   }
   check(errors.length === 0, `no console errors${errors.length ? `: ${errors.slice(0, 3).join(" | ")}` : ""}`);
   await page.close();
+  return { simW, simH };
 }
 
 async function main() {
   const browser = await chromium.launch();
-  await scenario(browser, "desktop", { width: 1440, height: 900 });
+  // CSS-pixel viewports equivalent to browser zoom on a 1440×900 window:
+  // browser zoom at factor z behaves like a (W/z)×(H/z) CSS viewport, so
+  // these stand in for real zoom levels without needing to drive browser UI.
+  const desktop = await scenario(browser, "desktop", { width: 1440, height: 900 });
   await scenario(browser, "phone", { width: 390, height: 740 });
+  const zoomedOut = await scenario(browser, "zoomout-50pct", { width: 2880, height: 1800 });
+  const zoomedIn = await scenario(browser, "zoomin-360pct", { width: 400, height: 250 });
   await browser.close();
+
+  // --- the exploit this whole band exists to close ---
+  console.log("\n[zoom fairness]");
+  check(
+    zoomedOut.simW <= desktop.simW && zoomedOut.simH <= desktop.simH,
+    `zooming out to ~50% cannot see more world than 100% (${Math.round(zoomedOut.simW)}×${Math.round(zoomedOut.simH)} vs ${Math.round(desktop.simW)}×${Math.round(desktop.simH)})`,
+  );
+  check(
+    zoomedIn.simW >= VIEW_SCALE.minWidth && zoomedIn.simH >= VIEW_SCALE.minHeight,
+    `zooming in to ~360% cannot shrink past the floor (${Math.round(zoomedIn.simW)}×${Math.round(zoomedIn.simH)})`,
+  );
+
   console.log(
     `\n${failures === 0 ? "ALL CHECKS PASSED" : `${failures} CHECK(S) FAILED`} — screenshots in ${SHOTS}`,
   );

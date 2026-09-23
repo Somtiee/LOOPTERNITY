@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, type MutableRefObject } from "react";
 import { audio } from "@/game/audio/AudioManager";
-import { WORLD } from "@/game/constants";
+import { VIEW_SCALE, WORLD } from "@/game/constants";
 import { Game, type RunRecord } from "@/game/engine/Game";
 import { KeyboardInput } from "@/game/input/KeyboardInput";
 import type { CharacterId, DifficultyId, GameMode, HudSnapshot, ThemeId } from "@/game/types";
@@ -76,14 +76,24 @@ export function GameCanvas({
     // Sim playfield dims are locked for the whole run (the server replays
     // with these exact values), so derive them from the initial viewport —
     // integers, clamped to the ranges the voucher route validates.
+    //
+    // They are ALSO clamped into VIEW_SCALE: these dims are how much world the
+    // player can see, and the viewport they come from is in CSS pixels, which
+    // browser zoom rescales. Without the band, zooming out to 67% enlarged the
+    // view while a 100% player's stayed put — a real edge for whoever zooms
+    // out furthest. The band caps both directions on every device.
     const parent0 = canvas.parentElement;
     const rect0 = parent0?.getBoundingClientRect();
     const targetAspect = WORLD.width / WORLD.viewHeight;
     let fitW = rect0?.width ?? WORLD.width;
     let fitH = rect0?.height ?? WORLD.viewHeight;
     if (fitW / fitH > targetAspect) fitW = fitH * targetAspect;
-    const simW = Math.round(Math.min(1200, Math.max(280, fitW)));
-    const simH = Math.round(Math.min(2200, Math.max(420, fitH)));
+    const simW = Math.round(
+      Math.min(VIEW_SCALE.maxWidth, Math.max(VIEW_SCALE.minWidth, fitW)),
+    );
+    const simH = Math.round(
+      Math.min(VIEW_SCALE.maxHeight, Math.max(VIEW_SCALE.minHeight, fitH)),
+    );
 
     const game = new Game(canvas, input, {
       themeId,

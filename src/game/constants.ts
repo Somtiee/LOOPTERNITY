@@ -6,6 +6,32 @@ export const WORLD = {
   wallPadding: 24,
 } as const;
 
+/**
+ * Fairness band for the visible playfield, as a fraction of the designed world.
+ *
+ * The sim's view dims ARE how much world a player can see, and they were
+ * derived straight from the CSS viewport — so browser zoom scaled them. At 67%
+ * zoom the view grew to the 1200 clamp while a 100% player kept 900: a real,
+ * measurable edge for zooming out, and the reverse penalty for zooming in.
+ *
+ * The view is clamped into this band instead, so no zoom level (and no window
+ * size) can see more than MAX or less than MIN of the designed field. Note
+ * this also caps the same advantage from simply resizing a desktop window.
+ *
+ * Keep these inside the ranges the voucher route validates for a recorded run
+ * (width 280..1200, height 420..2200 in src/game/sim/inputLog.ts) — the P2M
+ * server replays with the exact dims the client locked at run start.
+ */
+export const VIEW_SCALE = {
+  min: 0.6,
+  max: 1.1,
+  /** Integer sim-unit bounds, derived from WORLD so they track the design. */
+  minWidth: Math.round(WORLD.width * 0.6),
+  maxWidth: Math.round(WORLD.width * 1.1),
+  minHeight: Math.round(WORLD.viewHeight * 0.6),
+  maxHeight: Math.round(WORLD.viewHeight * 1.1),
+} as const;
+
 export const PLAYER = {
   width: 28,
   height: 46,
