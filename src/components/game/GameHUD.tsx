@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { SINK } from "@/game/constants";
 import { audio } from "@/game/audio/AudioManager";
 import {
@@ -21,6 +21,7 @@ import {
   useMintLoopitern,
 } from "@/web3/loopiterns";
 import { LoopiternPortrait } from "./LoopiternPortrait";
+import { HowToPlay } from "./HowToPlay";
 import { MuteButton } from "./MuteButton";
 
 const MINT_GREEN = "#00C805";
@@ -333,6 +334,7 @@ export function GameHUD({
   runSessionId = null,
   runRecord = null,
 }: GameHUDProps) {
+  const [howToOpen, setHowToOpen] = useState(false);
   const showOverlay = paused && hud.phase !== "gameover";
   const p2mUnlocked =
     mode === "p2m" ? highestRarityForScore(hud.score) : null;
@@ -545,6 +547,13 @@ export function GameHUD({
             </button>
             <button
               type="button"
+              onClick={() => setHowToOpen(true)}
+              className="mt-2 min-h-12 w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 font-[family-name:var(--font-display)] text-xs tracking-[0.2em] text-white/80 transition hover:bg-white/10"
+            >
+              HOW TO PLAY
+            </button>
+            <button
+              type="button"
               onClick={onMenu}
               className="mt-2 min-h-12 w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 font-[family-name:var(--font-display)] text-xs tracking-[0.2em] text-white/80 transition hover:bg-white/10"
             >
@@ -616,6 +625,10 @@ export function GameHUD({
           </div>
         </div>
       )}
+
+      {howToOpen ? (
+        <HowToPlay accent={accent} onClose={() => setHowToOpen(false)} />
+      ) : null}
     </div>
   );
 }

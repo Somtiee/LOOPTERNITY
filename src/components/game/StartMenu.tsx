@@ -10,6 +10,7 @@ import { ConnectWalletButton } from "@/components/web3/ConnectWalletButton";
 import { PlayerHub } from "@/components/web3/PlayerHub";
 import { AnimatedLogo } from "./AnimatedLogo";
 import { CharacterSelect } from "./CharacterSelect";
+import { HowToPlay } from "./HowToPlay";
 import { LoopiternEquip } from "./LoopiternEquip";
 import { LoopiternPortrait } from "./LoopiternPortrait";
 import { MuteButton } from "./MuteButton";
@@ -80,6 +81,7 @@ export function StartMenu({
   onRobinhood,
 }: StartMenuProps) {
   const [hubOpen, setHubOpen] = useState(false);
+  const [howToOpen, setHowToOpen] = useState(false);
   const [tab, setTab] = useState<"characters" | "loopiterns">("characters");
   const themes = listThemes();
   const accent = getTheme(p2mThemeId).accent;
@@ -107,7 +109,9 @@ export function StartMenu({
 
   return (
     <div
-      className="relative h-dvh w-full overflow-y-auto overflow-x-hidden"
+      className={`relative h-dvh w-full overflow-x-hidden ${
+        howToOpen ? "overflow-y-hidden" : "overflow-y-auto"
+      }`}
       style={{
         background: `radial-gradient(120% 80% at 50% 0%, #00C80514 0%, transparent 45%), linear-gradient(180deg, #04100a 0%, #0a1d12 100%)`,
         paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))",
@@ -139,6 +143,16 @@ export function StartMenu({
         <p className="mx-auto mt-1 max-w-md text-center text-sm text-white/55">
           Survive the rise. Dodge. Manage shields.
         </p>
+
+        <div className="mt-4 flex justify-center">
+          <button
+            type="button"
+            onClick={() => click(() => setHowToOpen(true))}
+            className="min-h-11 rounded-xl border border-white/15 bg-black/40 px-5 py-2.5 font-[family-name:var(--font-display)] text-[11px] tracking-[0.2em] text-white/80 transition hover:border-[#00C805]/45 hover:text-white active:scale-[0.98]"
+          >
+            HOW TO PLAY
+          </button>
+        </div>
 
         {mode === "p2m" && supply.configured && soldOut ? (
           <div className="mt-6 rounded-2xl border border-[#00C805]/30 bg-[#00C805]/10 px-4 py-3 text-center">
@@ -463,6 +477,10 @@ export function StartMenu({
 
       {hubOpen ? (
         <PlayerHub accent={accent} onClose={() => setHubOpen(false)} />
+      ) : null}
+
+      {howToOpen ? (
+        <HowToPlay accent={accent} onClose={() => setHowToOpen(false)} />
       ) : null}
     </div>
   );
