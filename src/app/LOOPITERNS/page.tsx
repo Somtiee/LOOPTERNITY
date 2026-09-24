@@ -248,11 +248,20 @@ export default async function LoopiternsPage() {
           <section>
             <h2>The five LOOPITERNS</h2>
             <p className={`${styles.prose} ${styles.muted}`}>
-              The LOOPITERNS: 5 distinct rarities. <strong>Common</strong> is a sprout on a rock,
-              <strong>Uncommon</strong> is already on the rope, <strong>Rare</strong> carries a mantle of ice
-              crystal, <strong>Epic</strong> stands in bone-white plate, and <strong>Legendary</strong> turns up
-              crowned, with the tsunami it commands at its back. Each tier is
-              the same character one step further up the same ladder.
+              {/* `.prose` is a column flex container, so bare <strong> children
+                  each become their own flex item and drop onto their own line.
+                  One <span> keeps the sentence a single item, and the explicit
+                  spaces stop the line breaks before Epic and Legendary from
+                  swallowing the space after the comma. */}
+              <span>
+                The LOOPITERNS: 5 distinct rarities. <strong>Common</strong> is a
+                sprout on a rock, <strong>Uncommon</strong> is already on the
+                rope, <strong>Rare</strong> carries a mantle of ice crystal,{" "}
+                <strong>Epic</strong> stands in bone-white plate, and{" "}
+                <strong>Legendary</strong> turns up crowned, with the tsunami it
+                commands at its back. Each tier is the same character one step
+                further up the same ladder.
+              </span>
             </p>
             <RarityGallery />
           </section>
