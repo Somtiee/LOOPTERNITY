@@ -27,13 +27,57 @@ cast call 0xF1d6AD543a47D84d5C624f80C0F22395BF524175 "totalSupply()" \
 
 1. **Verify the contract source on Blockscout.** The explorer's API is
    Cloudflare-gated, so `forge verify-contract` cannot reach it
-   programmatically. Use the web UI: Contract → Verify & Publish,
-   solc `0.8.29`, optimizer on (200 runs). Paste
-   `contracts/src/Loopiterns.sol` with its OpenZeppelin imports flattened
-   (`forge flatten`) if the UI doesn't resolve them.
-2. **Set `baseURI` once the production domain is live.** It is deployed
-   **empty**, so marketplace metadata does not resolve yet. Run from the
-   treasury key:
+   programmatically. Use the web UI: Contract → Verify & Publish.
+
+   Choose **Solidity (Standard-Json-Input)**, not a flattened single file.
+   Flattening rewrites the sources and therefore the metadata hash embedded
+   in the bytecode, so it cannot match; the standard JSON input carries the
+   exact 19 sources and settings the contract was built with.
+
+   | Field | Value |
+   | --- | --- |
+   | Verification method | `Solidity (Standard-Json-Input)` |
+   | Contract license | `MIT License (MIT)` (the `SPDX-License-Identifier` in `Loopiterns.sol`) |
+   | Compiler | `v0.8.29+commit.ab55807c` |
+   | EVM version | `cancun` |
+   | Optimization | Enabled, 200 runs |
+   | Constructor args | see below |
+
+   The input file is `contracts/verification-standard-json.json`; regenerate
+   it any time with:
+
+   ```bash
+   cd contracts && BASESCAN_API_KEY=dummy BASE_SEPOLIA_RPC_URL=http://localhost \
+     BASE_MAINNET_RPC_URL=http://localhost \
+     forge verify-contract --show-standard-json-input \
+     0xF1d6AD543a47D84d5C624f80C0F22395BF524175 src/Loopiterns.sol:Loopiterns \
+     > verification-standard-json.json
+   ```
+
+   (The dummy env vars satisfy `foundry.toml`'s `${BASESCAN_API_KEY}` and RPC
+   interpolation; they are never used.)
+
+   Constructor args, if the form asks for them — `(uint256,string,address,address)`:
+
+   ```
+   0x00000000000000000000000000000000000000000000000000016bcc41e900000000000000000000000000000000000000000000000000000000000000000080000000000000000000000000ed638d2de9e7b6e8d06514a161bb2ceff28bfcdd000000000000000000000000486ece21831ffa07661ef745746e2ec47a4862220000000000000000000000000000000000000000000000000000000000000000
+   ```
+
+   Pre-flight: `forge build` then compare
+   `out/Loopiterns.sol/Loopiterns.json`'s `deployedBytecode.object` against
+   `cast code 0xF1d6AD543a47D84d5C624f80C0F22395BF524175`. Verified
+   2026-09-24: both are 10,382 bytes and byte-identical, so these settings
+   reproduce the deployed contract exactly.
+2. **DONE — `baseURI` is set** (2026-09-24). It was deployed empty;
+   `setBaseURI("https://loopternity.xyz/api/loopitern/token/")` ran from the
+   treasury key in tx
+   `0x332f46a448605580d84dcc36733859d88e997e8908fed6616820784db21cd4b7`
+   (block 71397329, gasUsed 93,737). Read back on-chain:
+   `baseURI()` = `https://loopternity.xyz/api/loopitern/token/` and
+   `tokenURI(1)` = `https://loopternity.xyz/api/loopitern/token/1.json`.
+
+   `tokenURI(id)` = `baseURI + id + ".json"`, so the value **must end with
+   `/`**. To change it later, run from the treasury key:
 
    ```bash
    cast send 0xF1d6AD543a47D84d5C624f80C0F22395BF524175 \
@@ -42,8 +86,7 @@ cast call 0xF1d6AD543a47D84d5C624f80C0F22395BF524175 "totalSupply()" \
      --private-key <TREASURY_PRIVATE_KEY>
    ```
 
-   `tokenURI(id)` = `baseURI + id + ".json"`, so the value **must end with
-   `/`**. Sanity-check afterwards:
+   Sanity-check afterwards:
    `cast call <addr> "tokenURI(uint256)" 1 --rpc-url …` should return
    `https://<domain>/api/loopitern/token/1.json`, and that URL must return
    the ERC-721 JSON (the route reads owner + rarity from chain and 404s on
