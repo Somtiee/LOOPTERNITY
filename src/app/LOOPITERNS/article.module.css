@@ -30,11 +30,6 @@
   --display: var(--font-display), "Arial Narrow", system-ui, sans-serif;
   --body: var(--font-body), ui-sans-serif, system-ui, -apple-system, "Segoe UI",
     sans-serif;
-  /* Long-form measure. Measured, not guessed: at the 17px body size 1ch is
-     ~10.9px, so 68ch renders ~785px at ~88 characters per line. Do not raise
-     this while widening the shell — filling a 1060px column would push past
-     100 characters. The wide elements (rail, roster, steps) take the extra
-     room; paragraphs stop short of it on purpose. */
   --measure: 68ch;
 
   height: 100dvh;
@@ -69,21 +64,6 @@
   display: flex;
   flex-direction: column;
   gap: 52px;
-}
-
-/* Wider shell on desktop. Stepped rather than one large value so the side
-   gutters never collapse onto the screen edge, and max-width only ever caps,
-   so everything below 1024px renders exactly as it did before. */
-@media (min-width: 1024px) {
-  .wrap {
-    max-width: 920px;
-  }
-}
-
-@media (min-width: 1280px) {
-  .wrap {
-    max-width: 1060px;
-  }
 }
 
 /* ---------- type ---------- */
@@ -271,19 +251,6 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-  max-width: var(--measure);
-}
-
-/* Body copy that carried no cap of its own. Without this the wider shell
-   turns these into 110+ character lines. `.prose` above already has it, and
-   `.ladder` (560px) and the gallery cards (236px) are left alone: their
-   widths are geometry, not measure. */
-.lede,
-.provenance,
-.step p,
-.callout p,
-.mode p,
-.page footer p {
   max-width: var(--measure);
 }
 
