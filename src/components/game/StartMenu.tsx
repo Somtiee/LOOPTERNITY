@@ -133,7 +133,7 @@ export function StartMenu({
       </div>
 
       <div
-        className="mx-auto flex w-full max-w-3xl flex-col px-4 pb-8 sm:px-6"
+        className="mx-auto flex w-full max-w-3xl flex-col px-4 pb-8 sm:px-6 lg:max-w-4xl xl:max-w-5xl"
         style={{
           paddingTop: "max(4.5rem, calc(env(safe-area-inset-top) + 3.5rem))",
         }}
