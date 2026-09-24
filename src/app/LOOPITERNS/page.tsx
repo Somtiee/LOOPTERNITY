@@ -248,10 +248,11 @@ export default async function LoopiternsPage() {
           <section>
             <h2>The five LOOPITERNS</h2>
             <p className={`${styles.prose} ${styles.muted}`}>
-              Same green, further along. Common is a sprout on a rock,
-              Uncommon is already on the rope, and Legendary turns up crowned
-              with the tsunami it commands at its back. Swipe through — the
-              counts under each one are live.
+              The LOOPITERNS: 5 distinct rarities. Common is a sprout on a rock,
+              Uncommon is already on the rope, Rare carries a mantle of ice
+              crystal, Epic stands in bone-white plate, and Legendary turns up
+              crowned, with the tsunami it commands at its back. Each tier is
+              the same character one step further up the same ladder.
             </p>
             <RarityGallery />
           </section>
