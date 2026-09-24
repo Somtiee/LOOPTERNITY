@@ -10,7 +10,7 @@ import {
 import { audio } from "@/game/audio/AudioManager";
 import { getTheme, themeForEpochHour } from "@/game/themes";
 import type { KeyboardInput } from "@/game/input/KeyboardInput";
-import { DEFAULT_CHARACTER } from "@/game/characters";
+import { characterForTheme, DEFAULT_CHARACTER } from "@/game/characters";
 import type {
   CharacterId,
   DifficultyId,
@@ -124,6 +124,8 @@ export default function GameApp() {
   const [previousBest, setPreviousBest] = useState(0);
   const inputRef = useRef<KeyboardInput | null>(null);
   const recordedRef = useRef(false);
+  /** Set once when the mint page's CTA lands on /?mode=p2m. */
+  const deepLinkedP2m = useRef(false);
 
   const onHud = useCallback((next: HudSnapshot) => {
     setHud((prev) => {
@@ -174,6 +176,27 @@ export default function GameApp() {
   }, []);
 
   useEffect(() => {
+    // The mint page's "Play & mint" CTA arrives as /?mode=p2m. Read from
+    // window.location rather than useSearchParams: this route is a
+    // prerendered client shell and the param is a boot default, not reactive
+    // routing — nothing should re-apply it if the query changes underneath.
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("mode") !== "p2m") return;
+    deepLinkedP2m.current = true;
+    setMode("p2m");
+    // P2M is vanilla, so there are no stats to pick a runner by. Default to
+    // the one drawn for this hour's world; the picker stays open below.
+    setCharacterId(
+      characterForTheme(
+        themeForEpochHour(Math.floor(Date.now() / 3_600_000)).id,
+      ),
+    );
+  }, []);
+
+  useEffect(() => {
+    // A P2M deep link already chose this hour's character; the wallet's
+    // remembered pick must not overwrite it as the address resolves.
+    if (deepLinkedP2m.current) return;
     setCharacterId(resolveCharacterId(address));
   }, [address]);
 
@@ -212,16 +235,18 @@ export default function GameApp() {
   const selectCharacter = useCallback(
     (id: CharacterId) => {
       setCharacterId(id);
-      // The CHARACTERS | LOOPITERNS toggle is the source of truth — picking a
-      // base character means running as that character, not the equipped NFT.
-      if (equipped !== null) {
+      // The CHARACTERS | LOOPITERNS toggle is the source of truth — in Normal,
+      // picking a base character means running as that character, not the
+      // equipped NFT. P2M is vanilla and its picker offers no such toggle, so
+      // a P2M pick is cosmetic and must leave the Normal equip alone.
+      if (mode === "normal" && equipped !== null) {
         setEquipped(null);
         if (address) setEquippedLoopitern(address, null);
       }
       if (address) setPlayerCharacter(address, id);
       else setGuestCharacterId(id);
     },
-    [address, equipped],
+    [address, equipped, mode],
   );
 
   const selectEquip = useCallback(

@@ -111,7 +111,8 @@ export function CollectionStatsProvider({
   );
 }
 
-function useCollection(): CollectionStats {
+/** Shared by every live region on the page — one poller, one set of numbers. */
+export function useCollection(): CollectionStats {
   const stats = useContext(CollectionContext);
   if (!stats) {
     throw new Error("Live collection region rendered outside its provider");

@@ -12,6 +12,7 @@ import {
   LiveLadder,
   LiveStrip,
 } from "./LiveCollection";
+import { RarityGallery } from "./RarityGallery";
 import { RARITY_INK } from "./rarityInk";
 import styles from "./article.module.css";
 
@@ -245,6 +246,19 @@ export default async function LoopiternsPage() {
           <hr className={styles.rule} />
 
           <section>
+            <h2>The five LOOPITERNS</h2>
+            <p className={`${styles.prose} ${styles.muted}`}>
+              Same green, further along. Common is a sprout on a rock,
+              Uncommon is already on the rope, and Legendary turns up crowned
+              with the tsunami it commands at its back. Swipe through — the
+              counts under each one are live.
+            </p>
+            <RarityGallery />
+          </section>
+
+          <hr className={styles.rule} />
+
+          <section>
             <h2>What a LOOPITERN does</h2>
             <div className={styles.prose}>
               <p>
@@ -345,10 +359,13 @@ export default async function LoopiternsPage() {
             <div className={`${styles.prose} ${styles.small} ${styles.muted}`}>
               <p>
                 You&apos;ll need a wallet on Robinhood Chain with a little ETH
-                for the mint and gas. Open the game, choose <strong>P2M</strong>
-                , and play the hour&apos;s world. Your run starts the moment you
-                launch, so take your first attempt seriously: the score that
-                earns a voucher is one you actually survived to.
+                for the mint and gas. <strong>Play &amp; mint</strong> opens the
+                game straight into <strong>P2M</strong> on the hour&apos;s
+                world, with the character drawn for that world already picked —
+                change it before you launch if you&apos;d rather run as someone
+                else. Your run starts the moment you launch, so take your first
+                attempt seriously: the score that earns a voucher is one you
+                actually survived to.
               </p>
             </div>
             <div className={styles.addr}>
@@ -361,7 +378,7 @@ export default async function LoopiternsPage() {
               {address ? <CopyAddress address={address} /> : null}
             </div>
             <div className={styles.ctaRow}>
-              <Link className={styles.cta} href="/">
+              <Link className={styles.cta} href="/?mode=p2m">
                 Play &amp; mint
               </Link>
               <a

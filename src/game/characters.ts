@@ -1,4 +1,4 @@
-import type { CharacterId } from "./types";
+import type { CharacterId, ThemeId } from "./types";
 
 export type CharacterBuild = "compact" | "lean" | "stocky";
 
@@ -59,6 +59,22 @@ export const CHARACTERS: Record<CharacterId, CharacterDef> = {
 };
 
 export const CHARACTER_IDS: CharacterId[] = ["ash", "nova", "nord"];
+
+/**
+ * The runner built for each world — dress, not stats. P2M is vanilla, so an
+ * arrival there has nothing to go on when picking a character; this pairs
+ * each hourly world with the one drawn for it. The mint page's deep link
+ * uses it, and the picker stays open for anyone who wants someone else.
+ */
+const CHARACTER_FOR_THEME: Record<ThemeId, CharacterId> = {
+  volcanic: "ash",
+  planetary: "nova",
+  antarctica: "nord",
+};
+
+export function characterForTheme(themeId: ThemeId): CharacterId {
+  return CHARACTER_FOR_THEME[themeId] ?? DEFAULT_CHARACTER;
+}
 
 export function getCharacter(id: CharacterId | undefined): CharacterDef {
   return CHARACTERS[id ?? DEFAULT_CHARACTER] ?? CHARACTERS[DEFAULT_CHARACTER];

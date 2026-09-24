@@ -379,6 +379,187 @@
   color: var(--faint);
 }
 
+/* ---------- rarity gallery ----------
+   A snap rail, not a scripted carousel: the browser owns momentum, keyboard
+   and touch. Cards are narrower than the column so the next one peeks, which
+   is what tells you the row moves at all. */
+
+.gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.rail {
+  display: flex;
+  gap: 14px;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.rail::-webkit-scrollbar {
+  display: none;
+}
+
+.rail:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 6px;
+  border-radius: 10px;
+}
+
+.card {
+  flex: 0 0 clamp(190px, 58vw, 236px);
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--panel-2);
+}
+
+/* The artwork's own ground. Each rarity PNG is painted on a near-black field
+   rather than transparency, so matching the plate to it makes the picture sit
+   flush — no blend mode, and no radial mask, which would crop the rope
+   leaving the top of Uncommon and the crown on Legendary. */
+.plate {
+  background: #010c05;
+  line-height: 0;
+}
+
+.art {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 14px 14px;
+  border-top: 1px solid var(--line);
+}
+
+.cardName {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--c);
+}
+
+.cardIndex {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--faint);
+}
+
+.cardGate {
+  font-family: var(--display);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+
+.cardSupply {
+  font-size: 12px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.cardOut {
+  color: var(--orange);
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dots {
+  display: flex;
+  align-items: center;
+}
+
+/* Full-height target, compact width — five of these have to fit one row. */
+.dot {
+  display: grid;
+  place-items: center;
+  min-width: 30px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.dot::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--line-strong);
+  transition:
+    width 0.22s ease,
+    background 0.22s ease;
+}
+
+.dot:hover::before {
+  background: var(--muted);
+}
+
+.dotOn::before,
+.dotOn:hover::before {
+  width: 20px;
+  border-radius: 4px;
+  background: var(--green);
+}
+
+.arrows {
+  display: flex;
+  gap: 8px;
+}
+
+.arrow {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.arrow svg {
+  width: 16px;
+  height: 16px;
+}
+
+.arrow:hover:not(:disabled) {
+  border-color: var(--green);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.arrow:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
 /* ---------- roster table ---------- */
 
 .roster {

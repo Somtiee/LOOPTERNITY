@@ -278,26 +278,36 @@ export function StartMenu({
         ) : (
           <>
             {mode === "p2m" ? (
-              <section className="mt-7">
-                <h2 className="mb-3 font-[family-name:var(--font-display)] text-xs tracking-[0.28em] text-white/70">
-                  THIS HOUR&apos;S WORLD
-                </h2>
-                <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-black/25 px-4 py-3">
-                  <span className="inline-flex items-center gap-2 rounded-full border border-[#00C805]/35 bg-[#00C805]/10 px-3 py-1">
-                    <span
-                      className="h-2.5 w-2.5 rounded-full"
-                      style={{ background: accent }}
-                    />
-                    <span className="font-[family-name:var(--font-display)] text-[11px] tracking-[0.16em] text-white">
-                      {getTheme(p2mThemeId).name.toUpperCase()}
+              <>
+                <section className="mt-7">
+                  <h2 className="mb-3 font-[family-name:var(--font-display)] text-xs tracking-[0.28em] text-white/70">
+                    THIS HOUR&apos;S WORLD
+                  </h2>
+                  <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-black/25 px-4 py-3">
+                    <span className="inline-flex items-center gap-2 rounded-full border border-[#00C805]/35 bg-[#00C805]/10 px-3 py-1">
+                      <span
+                        className="h-2.5 w-2.5 rounded-full"
+                        style={{ background: accent }}
+                      />
+                      <span className="font-[family-name:var(--font-display)] text-[11px] tracking-[0.16em] text-white">
+                        {getTheme(p2mThemeId).name.toUpperCase()}
+                      </span>
                     </span>
-                  </span>
-                  <span className="ml-auto inline-flex items-center gap-1.5 font-[family-name:var(--font-display)] text-[11px] tracking-[0.12em] text-[#00C805]">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#00C805]" />
-                    NEXT IN {formatCountdown(countdownMs)}
-                  </span>
-                </div>
-              </section>
+                    <span className="ml-auto inline-flex items-center gap-1.5 font-[family-name:var(--font-display)] text-[11px] tracking-[0.12em] text-[#00C805]">
+                      <span className="h-1.5 w-1.5 rounded-full bg-[#00C805]" />
+                      NEXT IN {formatCountdown(countdownMs)}
+                    </span>
+                  </div>
+                </section>
+
+                {/* P2M is vanilla, so this is dress only — but the mint page
+                    deep-links a runner in, and anyone is free to swap it. */}
+                <CharacterSelect
+                  characterId={characterId}
+                  accent={accent}
+                  onChange={(id) => click(() => onCharacterChange(id))}
+                />
+              </>
             ) : (
               <>
                 {/* CHARACTERS | LOOPITERNS segmented control */}
