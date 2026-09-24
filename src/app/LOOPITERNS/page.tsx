@@ -240,12 +240,6 @@ export default async function LoopiternsPage() {
               from a standing start.
             </p>
             <LiveLadder />
-            <p className={styles.provenance}>
-              The first two LOOPITERNS ever minted were a Rare and an Epic —
-              the earliest runs cleared {formatScore(RARITIES[2].minScore)} and{" "}
-              {formatScore(RARITIES[3].minScore)} respectively. The ladder is
-              climbable.
-            </p>
           </section>
 
           <hr className={styles.rule} />
