@@ -22,6 +22,7 @@ import { useWalletSession } from "@/web3/hooks/useWalletSession";
 import { isReachabilityError, walletTxError } from "@/web3/walletErrors";
 import { loopiternsAbi } from "./abi";
 import { getLoopiternsAddress, getMintPriceFallbackWei } from "./address";
+import { FEE_BOOST, eip1559MintFees, type MintFees } from "./mintFees";
 
 export type MintTxStatus =
   | "idle"
@@ -100,20 +101,6 @@ async function fetchVoucher(
   };
 }
 
-/**
- * Fee overrides for the mint send — exactly one fee scheme, never both:
- * EIP-1559 fields or a legacy gas price. (wagmi's write params are a
- * discriminated union; an all-optional shape breaks its type guard.)
- */
-type MintFees =
-  | { gasPrice: bigint }
-  | { maxFeePerGas: bigint; maxPriorityFeePerGas?: bigint }
-  | { gasPrice?: undefined; maxFeePerGas?: undefined; maxPriorityFeePerGas?: undefined };
-
-/** Fee bump over the RPC estimate — gas on Robinhood is paid in ETH. */
-const FEE_BOOST = 2n;
-/** Priority-fee floor (0.1 gwei) so the tx never queues behind zero-tip txs. */
-const PRIORITY_FLOOR_WEI = 100_000_000n;
 /** Give the public RPC this long to price/validate the mint, then move on. */
 const RPC_DEADLINE_MS = 8_000;
 
@@ -143,13 +130,24 @@ function withRpcDeadline<T>(p: Promise<T>, ms = RPC_DEADLINE_MS): Promise<T> {
  */
 async function fastMintFees(client: PublicClient): Promise<MintFees> {
   try {
-    const fees = await withRpcDeadline(client.estimateFeesPerGas());
+    const [fees, baseFeePerGas] = await withRpcDeadline(
+      Promise.all([
+        client.estimateFeesPerGas(),
+        // The block read is optional input to the fee math, not a
+        // prerequisite: if it fails, eip1559MintFees still returns a sendable
+        // pair rather than costing us the boost altogether.
+        client
+          .getBlock({ blockTag: "latest" })
+          .then((block) => block.baseFeePerGas ?? null)
+          .catch(() => null),
+      ]),
+    );
     if (fees?.maxFeePerGas) {
-      return {
-        maxFeePerGas: fees.maxFeePerGas * FEE_BOOST,
-        maxPriorityFeePerGas:
-          (fees.maxPriorityFeePerGas ?? 0n) * FEE_BOOST + PRIORITY_FLOOR_WEI,
-      };
+      return eip1559MintFees({
+        baseFeePerGas,
+        rpcMaxFeePerGas: fees.maxFeePerGas,
+        rpcMaxPriorityFeePerGas: fees.maxPriorityFeePerGas,
+      });
     }
     if (fees?.gasPrice) return { gasPrice: fees.gasPrice * FEE_BOOST };
     const gasPrice = await withRpcDeadline(client.getGasPrice());
@@ -359,14 +357,28 @@ export function useMintLoopitern(
     try {
       // 1) Server voucher — score gate + session clock + full run replay
       //    live there. The replayed score is authoritative.
-      const voucher = await fetchVoucher(
-        wallet,
-        resolved.id,
-        score,
-        timeSurvived,
-        sessionId,
-        runRecord.inputLog,
-      );
+      //
+      //    Kept in its own try: everything this can throw is already human
+      //    copy (the server's reason, or fetchVoucher's own fallback), so it
+      //    must not be run through the wallet-error mapper below.
+      let voucher: Voucher;
+      try {
+        voucher = await fetchVoucher(
+          wallet,
+          resolved.id,
+          score,
+          timeSurvived,
+          sessionId,
+          runRecord.inputLog,
+        );
+      } catch (e) {
+        setLocalError(
+          e instanceof Error && e.message
+            ? e.message
+            : "Could not get a mint voucher. Retry.",
+        );
+        return;
+      }
       const args = [
         resolved.id,
         BigInt(voucher.deadline),
@@ -410,23 +422,13 @@ export function useMintLoopitern(
         ...fees,
       });
     } catch (e) {
-      const message =
-        e instanceof Error && e.message
-          ? e.message
-          : walletTxError(e, chainId ?? ACTIVE_CHAIN_ID, "mint");
-      // The run already minted (stuck-tx retry, second tab, …) — the chain
-      // would reject a second mint; say so plainly instead of a raw revert.
-      if (/UsedNonce/i.test(message)) {
-        setLocalError(
-          "This run was already minted — start a new run to mint again.",
-        );
-        return;
-      }
-      if (/ExpiredVoucher/i.test(message)) {
-        setLocalError("The mint window expired — retry the mint.");
-        return;
-      }
-      setLocalError(message);
+      // Everything left is a wallet / chain / viem error. Map it centrally so
+      // the player gets one sentence of retryable copy — a raw viem dump
+      // (Request Arguments, Contract Call, calldata, Docs: viem.sh) used to be
+      // shown here verbatim, because this branch read `e.message` directly
+      // instead of asking walletErrors.ts. The already-minted and
+      // expired-voucher cases are mapped there too.
+      setLocalError(walletTxError(e, chainId ?? ACTIVE_CHAIN_ID, "mint"));
     }
   }, [
     chainId,

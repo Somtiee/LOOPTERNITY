@@ -10,6 +10,7 @@
     "compose:loopitern": "tsx scripts/compose-loopitern.ts",
     "icons": "tsx scripts/make-icons.ts",
     "check:replay": "tsx scripts/replay-check.ts",
+    "check:mint-fees": "tsx scripts/mint-fees-check.ts",
     "e2e:replay": "tsx scripts/e2e-replay.ts",
     "e2e:browser": "tsx scripts/e2e-browser.ts"
   },
