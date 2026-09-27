@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { formatEther, parseEventLogs, type Address, type PublicClient } from "viem";
+import { formatEther, parseEventLogs, type Address } from "viem";
 import {
   usePublicClient,
   useReadContract,
@@ -22,7 +22,6 @@ import { useWalletSession } from "@/web3/hooks/useWalletSession";
 import { isReachabilityError, walletTxError } from "@/web3/walletErrors";
 import { loopiternsAbi } from "./abi";
 import { getLoopiternsAddress, getMintPriceFallbackWei } from "./address";
-import { FEE_BOOST, eip1559MintFees, type MintFees } from "./mintFees";
 
 export type MintTxStatus =
   | "idle"
@@ -101,7 +100,7 @@ async function fetchVoucher(
   };
 }
 
-/** Give the public RPC this long to price/validate the mint, then move on. */
+/** Give the public RPC this long to validate the mint, then move on. */
 const RPC_DEADLINE_MS = 8_000;
 
 /** Reject with a reachability-shaped error after `ms` — bounds RPC hangs. */
@@ -121,41 +120,6 @@ function withRpcDeadline<T>(p: Promise<T>, ms = RPC_DEADLINE_MS): Promise<T> {
   });
 }
 
-/**
- * Aggressive fees for the mint: wallets often submit with a near-zero tip
- * and the tx then lingers unmined while the player stares at the post-run
- * screen. Ask the RPC for its current fees and send at a firm multiple so
- * the mint lands in the next block or two. Best-effort — if the RPC can't
- * price gas in time, return nothing and let the wallet decide.
- */
-async function fastMintFees(client: PublicClient): Promise<MintFees> {
-  try {
-    const [fees, baseFeePerGas] = await withRpcDeadline(
-      Promise.all([
-        client.estimateFeesPerGas(),
-        // The block read is optional input to the fee math, not a
-        // prerequisite: if it fails, eip1559MintFees still returns a sendable
-        // pair rather than costing us the boost altogether.
-        client
-          .getBlock({ blockTag: "latest" })
-          .then((block) => block.baseFeePerGas ?? null)
-          .catch(() => null),
-      ]),
-    );
-    if (fees?.maxFeePerGas) {
-      return eip1559MintFees({
-        baseFeePerGas,
-        rpcMaxFeePerGas: fees.maxFeePerGas,
-        rpcMaxPriorityFeePerGas: fees.maxPriorityFeePerGas,
-      });
-    }
-    if (fees?.gasPrice) return { gasPrice: fees.gasPrice * FEE_BOOST };
-    const gasPrice = await withRpcDeadline(client.getGasPrice());
-    return gasPrice ? { gasPrice: gasPrice * FEE_BOOST } : {};
-  } catch {
-    return {};
-  }
-}
 /**
  * P2M mint (v2, voucher-gated + replay-attested). The client asks this
  * server for a signed voucher; the server re-runs the recorded input log
@@ -385,11 +349,7 @@ export function useMintLoopitern(
         BigInt(voucher.nonce),
         voucher.signature,
       ] as const;
-      // 2) Fees — bumped above the RPC estimate so the mint doesn't hang
-      //    in the mempool after the run. Best-effort: on RPC failure the
-      //    wallet's own estimate applies.
-      const fees = publicClient ? await fastMintFees(publicClient) : {};
-      // 3) Pre-flight the mint as an eth_call from the player's address:
+      // 2) Pre-flight the mint as an eth_call from the player's address:
       //    catches an already-minted run (UsedNonce), an expired voucher, a
       //    price change, the wallet cap, or a sellout BEFORE gas is spent.
       //    A transient public-RPC failure falls through to the send — the
@@ -411,7 +371,14 @@ export function useMintLoopitern(
           if (!isReachabilityError(message)) throw e;
         }
       }
-      // 4) On-chain mint with the signed voucher at the bumped fees.
+      // 3) On-chain mint with the signed voucher. No fee fields are passed, so
+      //    the wallet prices the tx itself. That is deliberate: a client-side
+      //    fee rule once built a cap below its own tip at low base fees, and
+      //    viem asserts that pair locally — before the wallet is opened — so
+      //    every mint threw with no popup and no explanation (commit 9dafa2a).
+      //    Do not reintroduce maxFeePerGas/maxPriorityFeePerGas here: wallet
+      //    pricing is what priced the mints that did land on this chain, and
+      //    gas is ~2¢ against a 0.0004 ETH mint.
       await writeContractAsync({
         address: contract,
         abi: loopiternsAbi,
@@ -419,7 +386,6 @@ export function useMintLoopitern(
         args: [...args],
         value: mintPrice,
         chainId: ACTIVE_CHAIN_ID,
-        ...fees,
       });
     } catch (e) {
       // Everything left is a wallet / chain / viem error. Map it centrally so

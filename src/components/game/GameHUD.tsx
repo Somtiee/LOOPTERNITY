@@ -238,6 +238,17 @@ function P2mMintBlock({
           {formatMintPriceEth(mintPrice)}
         </p>
       ) : null}
+      {/* The chain resolves a sold-out tier by minting the next one down
+          (Loopiterns.sol `_resolveRarity`), at the same price. The panel above
+          already says so when the supply read catches it (`dropped`); this
+          covers the race, where the tier fills between that read and the
+          signature the player signs. */}
+      {willMint && !dropped ? (
+        <p className="mt-1 text-[10px] leading-relaxed text-white/40">
+          If your tier sells out before your mint lands, you&apos;ll receive the
+          next one down.
+        </p>
+      ) : null}
       <div className="mt-3 flex justify-center">
         <ConnectWalletButton size="sm" />
       </div>

@@ -261,7 +261,8 @@ export function HowToPlay({ accent = GREEN, onClose }: HowToPlayProps) {
             <p className="mt-1.5 text-xs leading-relaxed text-white/55">
               One shared world an hour, vanilla rules — no equipped abilities.
               Reach a score gate in a single run, then pay the mint price to
-              claim that rarity.
+              claim that rarity. Every rarity costs the same, and if your tier
+              has sold out you receive the next one down.
             </p>
             <div className="mt-2.5 flex flex-wrap gap-1.5">
               {RARITIES.map((rarity) => (

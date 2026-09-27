@@ -94,8 +94,10 @@ export function walletTxError(
     return "The mint window expired — retry the mint.";
   }
   // viem refuses to send a tip above the fee cap and throws locally, before
-  // the wallet is asked, so there is no popup to explain the silence. Retrying
-  // recomputes both fees (mintFees.ts), which is the actual fix.
+  // the wallet is asked, so there is no popup to explain the silence. The app
+  // no longer sets fee fields on a mint — the wallet prices it — so this copy
+  // is a safety net rather than a live path: a wallet's own estimate, or a
+  // future override, could still produce the pair.
   if (/cannot be higher than the fee cap|TipAboveFeeCap/i.test(raw)) {
     return `Gas pricing hiccup on ${CHAIN_LABEL} — retry the ${verb}`;
   }
