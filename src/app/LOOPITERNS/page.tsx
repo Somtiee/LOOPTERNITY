@@ -49,6 +49,15 @@ const SITE_ORIGIN = "https://loopternity.xyz";
 const EXPLORER = "https://robinhoodchain.blockscout.com";
 const X_HANDLE = "https://x.com/LoopTernity";
 
+/**
+ * The whitepaper, served straight out of `public/` at the site root. A .docx
+ * has no inline renderer, so a browser downloads it rather than navigating —
+ * the `download` attribute just names the saved file, which is why the value
+ * repeats the filename instead of letting the path decide it.
+ */
+const WHITEPAPER_FILENAME = "LOOPTERNITY_Whitepaper_Robinhood.docx";
+const WHITEPAPER_HREF = `/${WHITEPAPER_FILENAME}`;
+
 export const metadata: Metadata = {
   title: "The LOOPITERNS Mint",
   description:
@@ -418,6 +427,12 @@ export default async function LoopiternsPage() {
               <a href={X_HANDLE} target="_blank" rel="noopener">
                 @LoopTernity
               </a>
+            </p>
+            <p>
+              <a href={WHITEPAPER_HREF} download={WHITEPAPER_FILENAME}>
+                Download the whitepaper
+              </a>{" "}
+              — how the game, the scoring and the mint fit together.
             </p>
           </footer>
         </CollectionStatsProvider>
